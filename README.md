@@ -30,6 +30,19 @@ Authenticated clients can send a Supabase access token to `/api/auth/me` as `Aut
 
 For direct backend PostgreSQL access, set `DATABASE_URL` only on the Node host. Use `postgresql://postgres:YOUR_PASSWORD@db.ybdlziufamgufmghmiou.supabase.co:5432/postgres` as the template and percent-encode special characters in the password. The connection check is available at `/api/database/status`; the browser never receives this connection string.
 
+## Prisma ORM
+
+Prisma is configured in `prisma/schema.prisma` for the Supabase `submissions` table. Set both `DATABASE_URL` (transaction pooler) and `DIRECT_URL` (session pooler for migrations) in the backend environment, then run:
+
+```powershell
+npx prisma generate
+npx prisma db pull
+```
+
+Use `npx prisma migrate dev` only after the database password is configured and you are ready to manage schema migrations from this project. Percent-encode special characters in both connection-string passwords.
+
+The backend exposes `/api/prisma/status` for a non-secret connection check. The Prisma client is created lazily and is never bundled into the browser build.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

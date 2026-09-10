@@ -9,6 +9,7 @@ import nodemailer from 'nodemailer'
 import { verifyAuth } from '@supabase/server/core'
 import * as XLSX from 'xlsx'
 import { getDatabasePool, isDatabaseConfigured } from './server/database.js'
+import { getPrisma, isPrismaConfigured } from './server/prisma.js'
 import { getSupabaseAdmin, isSupabaseServerConfigured } from './server/supabase.js'
 
 const app = express()
@@ -72,7 +73,19 @@ const transporter = () => nodemailer.createTransport({
 })
 
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true, emailConfigured: missingSmtp().length === 0, supabaseConfigured: isSupabaseServerConfigured(), databaseConfigured: isDatabaseConfigured() })
+  response.json({ ok: true, emailConfigured: missingSmtp().length === 0, supabaseConfigured: isSupabaseServerConfigured(), databaseConfigured: isDatabaseConfigured(), prismaConfigured: isPrismaConfigured() })
+})
+
+app.get('/api/prisma/status', async (_request, response) => {
+  const prisma = getPrisma()
+  if (!prisma) return response.json({ ok: true, configured: false, ready: false })
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    response.json({ ok: true, configured: true, ready: true })
+  } catch (error) {
+    console.error('Prisma connection check failed:', error.message)
+    response.json({ ok: true, configured: true, ready: false })
+  }
 })
 
 app.get('/api/database/status', async (_request, response) => {

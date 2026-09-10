@@ -1,5 +1,25 @@
 # React + Vite
 
+## SMTP email service
+
+Copy `.env.example` to `.env` and replace the placeholder values with credentials from your SMTP provider. Keep `.env` local and never commit it.
+
+```powershell
+Copy-Item .env.example .env
+npm run api
+```
+
+Run the frontend separately in another terminal with `npm run dev`, or run both services with `npm run dev:full`. The email page checks `/api/email/status` before sending. A configured SMTP service must be reachable from the machine running `server.js`.
+
+Required settings:
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_SECURE` (`true` for SSL/TLS SMTP providers, otherwise `false`)
+- `SMTP_USER`
+- `SMTP_PASS`
+- `MAIL_FROM`
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

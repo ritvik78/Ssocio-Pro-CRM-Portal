@@ -296,6 +296,39 @@ function App() {
         item.creator === creator ? { ...item, [field]: value } : item,
       ),
     );
+  const addSubmission = (audience, draft) => {
+    const creator = draft.creator.trim();
+    const handle = draft.handle.trim();
+    const campaign = draft.campaign.trim();
+    if (!creator || !handle || !campaign) {
+      notify("Creator, handle, and campaign are required");
+      return false;
+    }
+    setForAudience(audience, (items) => [
+      {
+        ...draft,
+        creator,
+        handle,
+        campaign,
+        submitted: draft.submitted.trim() || "Just now",
+        comments: draft.comments.trim() || "0",
+        likes: draft.likes.trim() || "0",
+        remarks: draft.remarks.trim(),
+        status: draft.status || "Needs review",
+        initials: creator
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
+        tone: ["coral", "blue", "yellow", "green"][items.length % 4],
+        manual: true,
+      },
+      ...items,
+    ]);
+    notify(`${creator} added to ${audience} submissions`);
+    return true;
+  };
   const importExcel = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -451,7 +484,7 @@ function App() {
                 editSubmission("brand", creator, field, value)
               }
               removeSubmission={(creator) => removeSubmission("brand", creator)}
-              notify={notify}
+              onAdd={(draft) => addSubmission("brand", draft)}
               onImport={() => fileInput.current?.click()}
             />
           ) : activeNav === "Influencer submissions" ? (
@@ -468,7 +501,7 @@ function App() {
               removeSubmission={(creator) =>
                 removeSubmission("influencer", creator)
               }
-              notify={notify}
+              onAdd={(draft) => addSubmission("influencer", draft)}
               onImport={() => fileInput.current?.click()}
             />
           ) : activeNav === "Campaigns" ? (
@@ -947,9 +980,21 @@ function Submissions({
   updateSubmission,
   editSubmission,
   removeSubmission,
-  notify,
+  onAdd,
   onImport,
 }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const emptyDraft = {
+    creator: "",
+    handle: "",
+    campaign: "",
+    submitted: "Just now",
+    comments: "0",
+    likes: "0",
+    remarks: "",
+    status: "Needs review",
+  };
+  const [draft, setDraft] = useState(emptyDraft);
   const filtered = submissions.filter((item) =>
     `${item.creator} ${item.campaign} ${item.status}`
       .toLowerCase()
@@ -967,9 +1012,33 @@ function Submissions({
         eyebrow={`OPERATIONS / ${audience.toUpperCase()} SUBMISSIONS`}
         title={audienceName}
         description={description}
-        action="Import Excel"
-        onAction={onImport}
+        action="Add submission"
+        onAction={() => setShowCreate(true)}
       />
+      {showCreate && (
+        <section className="panel inline-create-form submission-create-form">
+          <h2>New submission</h2>
+          <div className="form-grid submission-form-grid">
+            <input placeholder="Creator name *" value={draft.creator} onChange={(event) => setDraft({ ...draft, creator: event.target.value })} />
+            <input placeholder="Handle *" value={draft.handle} onChange={(event) => setDraft({ ...draft, handle: event.target.value })} />
+            <input placeholder="Campaign *" value={draft.campaign} onChange={(event) => setDraft({ ...draft, campaign: event.target.value })} />
+            <input placeholder="Submitted" value={draft.submitted} onChange={(event) => setDraft({ ...draft, submitted: event.target.value })} />
+            <input placeholder="Comments" value={draft.comments} onChange={(event) => setDraft({ ...draft, comments: event.target.value })} />
+            <input placeholder="Likes" value={draft.likes} onChange={(event) => setDraft({ ...draft, likes: event.target.value })} />
+            <input placeholder="Remarks" value={draft.remarks} onChange={(event) => setDraft({ ...draft, remarks: event.target.value })} />
+            <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
+              <option>Needs review</option>
+              <option>In review</option>
+              <option>Approved</option>
+              <option>Rejected</option>
+            </select>
+          </div>
+          <div className="form-actions">
+            <button className="secondary-button" onClick={() => setShowCreate(false)}>Cancel</button>
+            <button className="primary-button" onClick={() => { if (onAdd(draft)) { setDraft(emptyDraft); setShowCreate(false); } }}>Add submission</button>
+          </div>
+        </section>
+      )}
       <section className="metric-grid">
         <Metric
           label="AWAITING REVIEW"
@@ -991,6 +1060,8 @@ function Submissions({
         <PanelHeading
           title={`${audienceName} queue`}
           description={`${filtered.length} submissions match your current view · all fields are editable`}
+          action="Import Excel"
+          onAction={onImport}
         />
         <SubmissionTable
           submissions={filtered}

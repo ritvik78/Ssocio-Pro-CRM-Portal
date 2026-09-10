@@ -24,6 +24,8 @@ Required settings:
 
 This Vite app uses the browser Supabase client, so use Vite-prefixed variables rather than the Next.js `NEXT_PUBLIC_*` names. Copy `.env.example` to `.env.local`, add your Supabase project URL and publishable key, then run the SQL in `supabase-schema.sql` in the Supabase SQL Editor. Submission records will use Supabase when these variables and the table are available, with the existing API and local storage as a fallback.
 
+The backend also supports `@supabase/server`. Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `SUPABASE_JWKS_URL` only in the Node host environment. Never expose `SUPABASE_SECRET_KEY` through `VITE_*` variables or commit it. The backend check is available at `/api/supabase/status`.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

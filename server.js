@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import multer from 'multer'
 import nodemailer from 'nodemailer'
 import * as XLSX from 'xlsx'
+import { getSupabaseAdmin, isSupabaseServerConfigured } from './server/supabase.js'
 
 const app = express()
 const port = Number(process.env.PORT || process.env.API_PORT || 8787)
@@ -69,7 +70,20 @@ const transporter = () => nodemailer.createTransport({
 })
 
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true, emailConfigured: missingSmtp().length === 0 })
+  response.json({ ok: true, emailConfigured: missingSmtp().length === 0, supabaseConfigured: isSupabaseServerConfigured() })
+})
+
+app.get('/api/supabase/status', async (_request, response) => {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return response.json({ ok: true, configured: false, ready: false })
+  try {
+    const { error } = await supabase.from('submissions').select('id').limit(1)
+    if (error) throw error
+    response.json({ ok: true, configured: true, ready: true })
+  } catch (error) {
+    console.error('Supabase server check failed:', error.message)
+    response.json({ ok: true, configured: true, ready: false })
+  }
 })
 
 app.get('/api/email/status', async (_request, response) => {

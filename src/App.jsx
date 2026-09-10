@@ -12,6 +12,24 @@ const navItems = [
   ["Email automation", "✦"],
 ];
 const logoPath = `${import.meta.env.BASE_URL}ssssssssss.png`;
+const apiBase = import.meta.env.VITE_API_URL || (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://localhost:8787" : "");
+const emailTemplates = [
+  {
+    name: "Submission update",
+    subject: "Your Ssocio Pro submission update",
+    body: "Hi {{name}},\n\nYour latest submission has been reviewed by the Ssocio Pro team.\n\nThank you,\nThe Ssocio Pro team",
+  },
+  {
+    name: "Submission approved",
+    subject: "Your Ssocio Pro submission was approved",
+    body: "Hi {{name}},\n\nGood news: your submission for {{brand_name}} has been approved.\n\nThank you,\nThe Ssocio Pro team",
+  },
+  {
+    name: "More information needed",
+    subject: "Action needed on your Ssocio Pro submission",
+    body: "Hi {{name}},\n\nWe need a little more information before we can complete the review of your submission. Please reply to this email with the requested details.\n\nThank you,\nThe Ssocio Pro team",
+  },
+];
 const accessByRole = {
   "Ops / Admin": ["Overview", "Brand submissions", "Influencer submissions", "Campaigns", "Creators", "Wallet & payouts", "Email automation", "Settings"],
   Brand: ["Overview", "Influencer submissions", "Campaigns", "Creators", "Wallet & payouts", "Email automation"],
@@ -215,8 +233,6 @@ function App() {
   const [influencerSubmissions, setInfluencerSubmissions] = useState(() => readOfflineRows("influencer") || cloneSubmissions(initialSubmissions));
   const [search, setSearch] = useState("");
   const fileInput = useRef(null);
-  const apiBase = import.meta.env.VITE_API_URL || (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://localhost:8787" : "");
-
   const notify = (message) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2400);
@@ -1241,12 +1257,25 @@ function Wallet({ notify }) {
 }
 function Automation({ notify }) {
   const [recipient, setRecipient] = useState("");
-  const [subject, setSubject] = useState("Your Ssocio Pro submission update");
-  const [body, setBody] = useState(
-    "Hi {{name}},\n\nYour latest submission has been reviewed by the Ssocio Pro team.\n\nThank you,\nThe Ssocio Pro team",
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState(0);
+  const [subject, setSubject] = useState(emailTemplates[0].subject);
+  const [body, setBody] = useState(emailTemplates[0].body);
   const [sentEmails, setSentEmails] = useState([]);
   const [sending, setSending] = useState(false);
+  const [emailStatus, setEmailStatus] = useState("checking");
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${apiBase}/api/email/status`)
+      .then((response) => response.json())
+      .then((result) => {
+        if (active) setEmailStatus(result.ready ? "ready" : result.configured ? "offline" : "not-configured");
+      })
+      .catch(() => {
+        if (active) setEmailStatus("offline");
+      });
+    return () => { active = false; };
+  }, []);
 
   const sendEmail = async () => {
     if (!recipient.trim() || !recipient.includes("@")) {
@@ -1260,7 +1289,7 @@ function Automation({ notify }) {
     setSending(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8787"}/api/email/send`,
+        `${apiBase}/api/email/send`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1291,6 +1320,14 @@ function Automation({ notify }) {
     }
   };
 
+  const chooseTemplate = (value) => {
+    const index = Number(value);
+    const template = emailTemplates[index];
+    setSelectedTemplate(index);
+    setSubject(template.subject);
+    setBody(template.body);
+  };
+
   return (
     <>
       <PageHeader
@@ -1299,6 +1336,7 @@ function Automation({ notify }) {
         description="Draft and send creator communication from one workspace."
         action="New template"
         onAction={() => {
+          setSelectedTemplate(-1);
           setSubject("");
           setBody("");
           notify("New blank email draft created");
@@ -1310,7 +1348,24 @@ function Automation({ notify }) {
             title="Send an email"
             description="Send a drafted message directly to any influencer"
           />
+          <div className={`email-service-status ${emailStatus}`}>
+            <span className="online-dot"></span>
+            {emailStatus === "ready" && "Email service ready"}
+            {emailStatus === "checking" && "Checking email service..."}
+            {emailStatus === "not-configured" && "Email service needs SMTP settings"}
+            {emailStatus === "offline" && "Email service unavailable"}
+          </div>
           <div className="email-form">
+            <label>
+              Message template
+              <select
+                value={selectedTemplate < 0 ? "custom" : selectedTemplate}
+                onChange={(event) => event.target.value === "custom" ? setSelectedTemplate(-1) : chooseTemplate(event.target.value)}
+              >
+                {emailTemplates.map((template, index) => <option value={index} key={template.name}>{template.name}</option>)}
+                <option value="custom">Custom message</option>
+              </select>
+            </label>
             <label>
               Influencer email
               <input

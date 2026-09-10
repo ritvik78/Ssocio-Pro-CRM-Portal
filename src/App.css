@@ -36,4 +36,6 @@
 .creator-card, .settings-panel input, .settings-panel select, .search-box, .inline-input, .inline-select { background: #fff; border-color: #d5d4cc; color: #151515; }.creator-stats { border-color: #e7e6df; }
 .chain span { background: #fff3a8; color: #665500; }.chain b { color: #8b7600; }
 .secondary-button, .approve-button { color: #665500; border-color: #d4bd00; }.reject-button, .remove-button { color: #111; border-color: #c4b000; background: #fff3a8; }.remove-button:hover, .reject-button:hover { background: #f2cf00; }
+.email-service-status { display: flex; align-items: center; gap: 8px; margin: 0 24px 18px; padding: 9px 10px; border: 1px solid #e7e6df; border-radius: 5px; color: #665500; background: #fffdf0; font-size: 10px; }.email-service-status .online-dot { width: 7px; height: 7px; box-shadow: none; }.email-service-status.ready .online-dot { background: #4d9b42; }.email-service-status.not-configured .online-dot, .email-service-status.offline .online-dot { background: #c45b42; }.email-service-status.checking .online-dot { background: #d4b600; }
+.email-form select { width: 100%; border: 1px solid #d5d4cc; border-radius: 5px; background: #fff; color: #151515; outline: 0; padding: 10px 11px; font-size: 11px; }.email-form select:focus { border-color: #d4b600; box-shadow: 0 0 0 2px rgba(242,207,0,.16); }
 .toast { background: #111; color: #fff; }

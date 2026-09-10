@@ -52,6 +52,12 @@ const storageError = (response, error) => response.status(500).json({ ok: false,
 
 const requiredSmtp = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'MAIL_FROM']
 const missingSmtp = () => requiredSmtp.filter((key) => !process.env[key])
+const escapeHtml = (value) => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;')
 
 const transporter = () => nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -62,6 +68,17 @@ const transporter = () => nodemailer.createTransport({
 
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true, emailConfigured: missingSmtp().length === 0 })
+})
+
+app.get('/api/email/status', async (_request, response) => {
+  if (missingSmtp().length) return response.json({ ok: true, configured: false, ready: false })
+  try {
+    await transporter().verify()
+    response.json({ ok: true, configured: true, ready: true })
+  } catch (error) {
+    console.error('Email service check failed:', error.message)
+    response.json({ ok: true, configured: true, ready: false })
+  }
 })
 
 app.get('/api/storage/submissions/:audience', async (request, response) => {
@@ -107,20 +124,23 @@ app.post('/api/storage/submissions/:audience/upload', upload.single('file'), asy
 
 app.post('/api/email/send', async (request, response) => {
   const { recipient, subject, body } = request.body || {}
-  if (!recipient || !subject || !body) return response.status(400).json({ ok: false, error: 'recipient, subject, and body are required' })
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return response.status(400).json({ ok: false, error: 'Enter a valid recipient email address' })
+  const cleanRecipient = String(recipient || '').trim()
+  const cleanSubject = String(subject || '').trim()
+  const cleanBody = String(body || '').trim()
+  if (!cleanRecipient || !cleanSubject || !cleanBody) return response.status(400).json({ ok: false, error: 'recipient, subject, and body are required' })
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanRecipient)) return response.status(400).json({ ok: false, error: 'Enter a valid recipient email address' })
   const missing = missingSmtp()
   if (missing.length) return response.status(503).json({ ok: false, error: 'Email service is not configured. Add SMTP settings to .env.', missing })
 
   try {
     const result = await transporter().sendMail({
       from: process.env.MAIL_FROM,
-      to: recipient,
-      subject,
-      text: body,
-      html: body.replace(/\n/g, '<br>'),
+      to: cleanRecipient,
+      subject: cleanSubject,
+      text: cleanBody,
+      html: escapeHtml(cleanBody).replace(/\n/g, '<br>'),
     })
-    response.json({ ok: true, messageId: result.messageId, recipient, sentAt: new Date().toISOString() })
+    response.json({ ok: true, messageId: result.messageId, recipient: cleanRecipient, sentAt: new Date().toISOString() })
   } catch (error) {
     console.error('Email delivery failed:', error.message)
     response.status(502).json({ ok: false, error: 'Email delivery failed. Check your SMTP settings.' })

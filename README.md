@@ -20,6 +20,10 @@ Required settings:
 - `SMTP_PASS`
 - `MAIL_FROM`
 
+## Supabase setup
+
+This Vite app uses the browser Supabase client, so use Vite-prefixed variables rather than the Next.js `NEXT_PUBLIC_*` names. Copy `.env.example` to `.env.local`, add your Supabase project URL and publishable key, then run the SQL in `supabase-schema.sql` in the Supabase SQL Editor. Submission records will use Supabase when these variables and the table are available, with the existing API and local storage as a fallback.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
@@ -68,10 +72,12 @@ Use the port supplied by the hosting provider when one is required. The server a
 
 ## GitHub Pages email connection
 
-GitHub Pages hosts the frontend only. Deploy `server.js` to a Node host first, then add a repository variable at **Settings > Secrets and variables > Actions > Variables**:
+GitHub Pages hosts the frontend only. Deploy `server.js` to a Node host first, then add these repository variables at **Settings > Secrets and variables > Actions > Variables**:
 
 ```text
 VITE_API_URL=https://your-email-api.example.com
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
 ```
 
 Set the backend's `CLIENT_ORIGIN` to the exact GitHub Pages URL, for example `https://your-account.github.io/Ssocio-Pro-CRM-Portal`. Keep `SMTP_USER` and `SMTP_PASS` as backend-host secrets. Do not add them to GitHub Actions variables, frontend environment values, or committed files.

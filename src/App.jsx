@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
+import { loadSupabaseSubmissions, saveSupabaseSubmissions, supabase } from "./lib/supabase";
 import "./App.css";
 
 const navItems = [
@@ -248,6 +249,14 @@ function App() {
   };
   const persistAudience = async (audience, rows) => {
     writeOfflineRows(audience, rows);
+    if (supabase) {
+      try {
+        await saveSupabaseSubmissions(audience, rows);
+        return;
+      } catch (error) {
+        console.warn(`Supabase storage unavailable; ${audience} data will use the fallback storage.`, error.message);
+      }
+    }
     if (!apiBase) return;
     try {
       const response = await fetch(`${apiBase}/api/storage/submissions/${audience}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
@@ -266,6 +275,20 @@ function App() {
   };
   useEffect(() => {
     const loadAudience = async (audience, setter) => {
+      if (supabase) {
+        try {
+          const rows = await loadSupabaseSubmissions(audience);
+          if (rows.length) setter(rows);
+          else {
+            const seed = cloneSubmissions(initialSubmissions);
+            setter(seed);
+            void persistAudience(audience, seed);
+          }
+          return;
+        } catch (error) {
+          console.warn(`Supabase loading unavailable; ${audience} data will use the fallback storage.`, error.message);
+        }
+      }
       const offlineRows = readOfflineRows(audience);
       if (offlineRows !== null) {
         setter(offlineRows);

@@ -215,7 +215,7 @@ function App() {
   const [influencerSubmissions, setInfluencerSubmissions] = useState(() => readOfflineRows("influencer") || cloneSubmissions(initialSubmissions));
   const [search, setSearch] = useState("");
   const fileInput = useRef(null);
-  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:8787";
+  const apiBase = import.meta.env.VITE_API_URL || (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://localhost:8787" : "");
 
   const notify = (message) => {
     setToast(message);
@@ -232,6 +232,7 @@ function App() {
   };
   const persistAudience = async (audience, rows) => {
     writeOfflineRows(audience, rows);
+    if (!apiBase) return;
     try {
       const response = await fetch(`${apiBase}/api/storage/submissions/${audience}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
       if (!response.ok) throw new Error("Storage API rejected the data");
@@ -255,6 +256,7 @@ function App() {
         void persistAudience(audience, offlineRows);
         return;
       }
+      if (!apiBase) return;
       try {
         const response = await fetch(`${apiBase}/api/storage/submissions/${audience}`);
         const result = await response.json();

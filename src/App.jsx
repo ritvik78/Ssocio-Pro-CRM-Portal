@@ -89,14 +89,13 @@ const cloneSubmissions = (items) => items.map((item) => ({ ...item }));
 const submissionIdentity = (item) => [item.creator, item.handle, item.campaign, item.submitted]
   .map((value) => String(value || "").trim().toLowerCase())
   .join("|");
-const removeDuplicateRows = (items) => {
-  const seen = new Set();
-  return items.filter((item) => {
+const findDuplicateGroups = (items) => {
+  const groups = new Map();
+  items.forEach((item) => {
     const identity = submissionIdentity(item);
-    if (seen.has(identity)) return false;
-    seen.add(identity);
-    return true;
+    groups.set(identity, [...(groups.get(identity) || []), item]);
   });
+  return [...groups.values()].filter((group) => group.length > 1);
 };
 const offlineStorageKey = (audience) => `ssocio-pro-${audience}-submissions`;
 const readOfflineRows = (audience) => {
@@ -241,8 +240,8 @@ function App() {
   const [activeNav, setActiveNav] = useState("Overview");
   const [role, setRole] = useState("Ops / Admin");
   const [toast, setToast] = useState("");
-  const [brandSubmissions, setBrandSubmissions] = useState(() => removeDuplicateRows(readOfflineRows("brand") || cloneSubmissions(initialSubmissions)));
-  const [influencerSubmissions, setInfluencerSubmissions] = useState(() => removeDuplicateRows(readOfflineRows("influencer") || cloneSubmissions(initialSubmissions)));
+  const [brandSubmissions, setBrandSubmissions] = useState(() => readOfflineRows("brand") || cloneSubmissions(initialSubmissions));
+  const [influencerSubmissions, setInfluencerSubmissions] = useState(() => readOfflineRows("influencer") || cloneSubmissions(initialSubmissions));
   const [search, setSearch] = useState("");
   const fileInput = useRef(null);
   const notify = (message) => {
@@ -280,9 +279,8 @@ function App() {
     const loadAudience = async (audience, setter) => {
       const offlineRows = readOfflineRows(audience);
       if (offlineRows !== null) {
-        const uniqueRows = removeDuplicateRows(offlineRows);
-        setter(uniqueRows);
-        void persistAudience(audience, uniqueRows);
+        setter(offlineRows);
+        void persistAudience(audience, offlineRows);
         return;
       }
       if (!apiBase) return;
@@ -291,9 +289,7 @@ function App() {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Storage API unavailable");
         if (result.rows.length) {
-          const uniqueRows = removeDuplicateRows(result.rows);
-          setter(uniqueRows);
-          if (uniqueRows.length !== result.rows.length) void persistAudience(audience, uniqueRows);
+          setter(result.rows);
         }
         else {
           const seed = cloneSubmissions(initialSubmissions);
@@ -322,15 +318,6 @@ function App() {
       items.filter((item) => item.creator !== creator),
     );
     notify(`${creator} removed from the imported queue`);
-  };
-  const removeDuplicateSubmissions = (audience) => {
-    let removed = 0;
-    setForAudience(audience, (items) => {
-      const uniqueRows = removeDuplicateRows(items);
-      removed = items.length - uniqueRows.length;
-      return uniqueRows;
-    });
-    notify(removed ? `${removed} duplicate submission${removed === 1 ? "" : "s"} removed` : "No duplicate submissions found");
   };
   const editSubmission = (audience, creator, field, value) =>
     setForAudience(audience, (items) =>
@@ -381,10 +368,10 @@ function App() {
       if (!rows.length) throw new Error("The first sheet is empty");
       const audience =
         activeNav === "Brand submissions" ? "brand" : "influencer";
-      setForAudience(audience, (current) => removeDuplicateRows([
+      setForAudience(audience, (current) => [
         ...rows.map(normalizeSubmission),
         ...current,
-      ]));
+      ]);
       notify(
         `${rows.length} submission${rows.length === 1 ? "" : "s"} imported from Excel`,
       );
@@ -526,7 +513,6 @@ function App() {
                 editSubmission("brand", creator, field, value)
               }
               removeSubmission={(creator) => removeSubmission("brand", creator)}
-              removeDuplicateSubmissions={() => removeDuplicateSubmissions("brand")}
               onAdd={(draft) => addSubmission("brand", draft)}
               onImport={() => fileInput.current?.click()}
             />
@@ -544,7 +530,6 @@ function App() {
               removeSubmission={(creator) =>
                 removeSubmission("influencer", creator)
               }
-              removeDuplicateSubmissions={() => removeDuplicateSubmissions("influencer")}
               onAdd={(draft) => addSubmission("influencer", draft)}
               onImport={() => fileInput.current?.click()}
             />
@@ -1024,11 +1009,11 @@ function Submissions({
   updateSubmission,
   editSubmission,
   removeSubmission,
-  removeDuplicateSubmissions,
   onAdd,
   onImport,
 }) {
   const [showCreate, setShowCreate] = useState(false);
+  const [showDuplicateChecker, setShowDuplicateChecker] = useState(false);
   const emptyDraft = {
     creator: "",
     handle: "",
@@ -1040,6 +1025,7 @@ function Submissions({
     status: "Needs review",
   };
   const [draft, setDraft] = useState(emptyDraft);
+  const duplicateGroups = findDuplicateGroups(submissions);
   const filtered = submissions.filter((item) =>
     `${item.creator} ${item.campaign} ${item.status}`
       .toLowerCase()
@@ -1060,6 +1046,11 @@ function Submissions({
         action="Add submission"
         onAction={() => setShowCreate(true)}
       />
+      <div className="submission-page-actions">
+        <button className="secondary-button" onClick={() => setShowDuplicateChecker(true)}>
+          Duplicate checker {duplicateGroups.length > 0 && <b>{duplicateGroups.length}</b>}
+        </button>
+      </div>
       {showCreate && (
         <section className="panel inline-create-form submission-create-form">
           <h2>New submission</h2>
@@ -1108,11 +1099,6 @@ function Submissions({
           action="Import Excel"
           onAction={onImport}
         />
-        <div className="submission-tools">
-          <button className="text-button" onClick={removeDuplicateSubmissions}>
-            Remove duplicates <span>↻</span>
-          </button>
-        </div>
         <SubmissionTable
           submissions={filtered}
           review
@@ -1121,6 +1107,33 @@ function Submissions({
           removeSubmission={removeSubmission}
         />
       </article>
+      {showDuplicateChecker && (
+        <div className="dialog-backdrop" role="presentation" onClick={() => setShowDuplicateChecker(false)}>
+          <section className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-dialog-title" onClick={(event) => event.stopPropagation()}>
+            <div className="duplicate-dialog-heading">
+              <div>
+                <p className="eyebrow">DATA QUALITY / {audience.toUpperCase()}</p>
+                <h2 id="duplicate-dialog-title">Duplicate submission checker</h2>
+              </div>
+              <button className="dialog-close" aria-label="Close duplicate checker" onClick={() => setShowDuplicateChecker(false)}>×</button>
+            </div>
+            {duplicateGroups.length === 0 ? (
+              <div className="duplicate-empty"><span>✓</span><strong>No duplicate submissions found</strong><p>New duplicates will be flagged here without being removed.</p></div>
+            ) : (
+              <div className="duplicate-groups">
+                <p className="duplicate-summary">{duplicateGroups.length} duplicate group{duplicateGroups.length === 1 ? "" : "s"} flagged. Review the rows below before taking action.</p>
+                {duplicateGroups.map((group, groupIndex) => (
+                  <div className="duplicate-group" key={`${submissionIdentity(group[0])}-${groupIndex}`}>
+                    <strong>Duplicate group {groupIndex + 1}</strong>
+                    {group.map((item, itemIndex) => <div className="duplicate-row" key={`${item.creator}-${item.submitted}-${itemIndex}`}><span>{item.creator}</span><small>{item.handle} · {item.campaign} · {item.submitted}</small><Status value={item.status} /></div>)}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="duplicate-dialog-footer"><button className="primary-button" onClick={() => setShowDuplicateChecker(false)}>Close checker</button></div>
+          </section>
+        </div>
+      )}
     </>
   );
 }

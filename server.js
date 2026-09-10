@@ -25,18 +25,6 @@ const storagePaths = (audience) => ({
 })
 
 const validAudience = (audience) => audiences.has(audience)
-const submissionIdentity = (row) => [row.creator, row.handle, row.campaign, row.submitted]
-  .map((value) => String(value || '').trim().toLowerCase())
-  .join('|')
-const removeDuplicateRows = (rows) => {
-  const seen = new Set()
-  return rows.filter((row) => {
-    const identity = submissionIdentity(row)
-    if (seen.has(identity)) return false
-    seen.add(identity)
-    return true
-  })
-}
 
 const readStoredRows = async (audience) => {
   const { xlsx } = storagePaths(audience)
@@ -128,7 +116,7 @@ app.post('/api/storage/submissions/:audience/upload', upload.single('file'), asy
     const workbook = XLSX.read(request.file.buffer, { type: 'buffer' })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const imported = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-    const rows = removeDuplicateRows([...imported, ...(await readStoredRows(audience))])
+    const rows = [...imported, ...(await readStoredRows(audience))]
     await writeStoredRows(audience, rows)
     response.json({ ok: true, audience, imported: imported.length, count: rows.length, rows })
   } catch (error) { storageError(response, error) }

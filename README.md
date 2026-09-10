@@ -65,3 +65,13 @@ MAIL_FROM=Ssocio Pro <noreply@your-domain.example>
 ```
 
 Use the port supplied by the hosting provider when one is required. The server also accepts `API_PORT` for local development. The provider must allow outbound SMTP connections, and the sender address should be verified with the SMTP provider. After deployment, open Email automation and confirm it shows `Email service ready` before sending a test message.
+
+## GitHub Pages email connection
+
+GitHub Pages hosts the frontend only. Deploy `server.js` to a Node host first, then add a repository variable at **Settings > Secrets and variables > Actions > Variables**:
+
+```text
+VITE_API_URL=https://your-email-api.example.com
+```
+
+Set the backend's `CLIENT_ORIGIN` to the exact GitHub Pages URL, for example `https://your-account.github.io/Ssocio-Pro-CRM-Portal`. Keep `SMTP_USER` and `SMTP_PASS` as backend-host secrets. Do not add them to GitHub Actions variables, frontend environment values, or committed files.

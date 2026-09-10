@@ -43,6 +43,16 @@ Use `npx prisma migrate dev` only after the database password is configured and 
 
 The backend exposes `/api/prisma/status` for a non-secret connection check. The Prisma client is created lazily and is never bundled into the browser build.
 
+## Supabase MCP
+
+The project MCP configuration is stored in `.mcp.json`. After installing the Claude CLI, authenticate the configured Supabase server from a regular terminal:
+
+```powershell
+claude /mcp
+```
+
+Select `supabase`, choose **Authenticate**, and complete the browser flow. The MCP URL contains only the project reference and feature flags; no secret key is stored in this repository.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

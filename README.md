@@ -28,6 +28,8 @@ The backend also supports `@supabase/server`. Set `SUPABASE_URL`, `SUPABASE_SECR
 
 Authenticated clients can send a Supabase access token to `/api/auth/me` as `Authorization: Bearer <token>`. The endpoint verifies the token with the configured JWKS URL and returns the verified user claims.
 
+For direct backend PostgreSQL access, set `DATABASE_URL` only on the Node host. Use `postgresql://postgres:YOUR_PASSWORD@db.ybdlziufamgufmghmiou.supabase.co:5432/postgres` as the template and percent-encode special characters in the password. The connection check is available at `/api/database/status`; the browser never receives this connection string.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

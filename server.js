@@ -8,6 +8,7 @@ import multer from 'multer'
 import nodemailer from 'nodemailer'
 import { verifyAuth } from '@supabase/server/core'
 import * as XLSX from 'xlsx'
+import { getDatabasePool, isDatabaseConfigured } from './server/database.js'
 import { getSupabaseAdmin, isSupabaseServerConfigured } from './server/supabase.js'
 
 const app = express()
@@ -71,7 +72,19 @@ const transporter = () => nodemailer.createTransport({
 })
 
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true, emailConfigured: missingSmtp().length === 0, supabaseConfigured: isSupabaseServerConfigured() })
+  response.json({ ok: true, emailConfigured: missingSmtp().length === 0, supabaseConfigured: isSupabaseServerConfigured(), databaseConfigured: isDatabaseConfigured() })
+})
+
+app.get('/api/database/status', async (_request, response) => {
+  const database = getDatabasePool()
+  if (!database) return response.json({ ok: true, configured: false, ready: false })
+  try {
+    await database.query('select 1')
+    response.json({ ok: true, configured: true, ready: true })
+  } catch (error) {
+    console.error('Database connection check failed:', error.message)
+    response.json({ ok: true, configured: true, ready: false })
+  }
 })
 
 app.get('/api/supabase/status', async (_request, response) => {

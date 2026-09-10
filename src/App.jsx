@@ -11,6 +11,7 @@ const navItems = [
   ["Wallet & payouts", "▣"],
   ["Email automation", "✦"],
 ];
+const logoPath = `${import.meta.env.BASE_URL}ssssssssss.png`;
 const accessByRole = {
   "Ops / Admin": ["Overview", "Brand submissions", "Influencer submissions", "Campaigns", "Creators", "Wallet & payouts", "Email automation", "Settings"],
   Brand: ["Overview", "Influencer submissions", "Campaigns", "Creators", "Wallet & payouts", "Email automation"],
@@ -334,7 +335,7 @@ function App() {
           onClick={() => goTo("Overview")}
           aria-label="Go to overview"
         >
-          <img src="/ssssssssss.png" alt="Ssocio Pro" />
+          <img src={logoPath} alt="Ssocio Pro" />
         </button>
         <button
           className="workspace-switcher"
@@ -499,7 +500,7 @@ function LoginPage({ onLogin }) {
     }
     onLogin(selectedRole);
   };
-  return <main className="login-page"><div className="login-brand"><img src="/ssssssssss.png" alt="Ssocio Pro" /></div><section className="login-card"><p className="eyebrow">SSOCIO PRO PORTAL</p><h1>Welcome back</h1><p className="login-copy">Sign in to manage creator campaigns, submissions, and payouts.</p><form onSubmit={submit}><label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoComplete="email" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete="current-password" /></label><label>Sign in as<select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)}><option>Ops / Admin</option><option>Brand</option><option>Influencer</option></select></label>{error && <p className="login-error">{error}</p>}<button className="primary-button login-button" type="submit">Sign in <span>→</span></button></form><small className="login-demo">Demo portal · role access is ready for integration with your auth provider</small></section></main>;
+  return <main className="login-page"><div className="login-brand"><img src={logoPath} alt="Ssocio Pro" /></div><section className="login-card"><p className="eyebrow">SSOCIO PRO PORTAL</p><h1>Welcome back</h1><p className="login-copy">Sign in to manage creator campaigns, submissions, and payouts.</p><form onSubmit={submit}><label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoComplete="email" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete="current-password" /></label><label>Sign in as<select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)}><option>Ops / Admin</option><option>Brand</option><option>Influencer</option></select></label>{error && <p className="login-error">{error}</p>}<button className="primary-button login-button" type="submit">Sign in <span>→</span></button></form><small className="login-demo">Demo portal · role access is ready for integration with your auth provider</small></section></main>;
 }
 
 function BrandHome({ goTo }) { return <><PageHeader eyebrow="BRAND WORKSPACE" title="Your campaigns, at a glance" description="Track creator submissions, campaign performance, and return on investment." action="View submissions" onAction={() => goTo("Influencer submissions")} /><section className="metric-grid"><Metric label="ACTIVE CAMPAIGNS" value="08" detail="2" color="blue" /><Metric label="SUBMISSIONS RECEIVED" value="42" detail="8" /><Metric label="TOTAL REACH" value="1.8M" detail="14%" color="yellow" /><Metric label="CAMPAIGN ROI" value="3.8x" detail=".6x" color="green" /></section><section className="role-dashboard-grid"><article className="panel role-welcome-panel"><PanelHeading title="Brand action center" description="Keep your creator activations moving" /><button className="role-action" onClick={() => goTo("Campaigns")}>Manage campaigns <span>→</span></button><button className="role-action" onClick={() => goTo("Influencer submissions")}>Review influencer submissions <span>→</span></button><button className="role-action" onClick={() => goTo("Wallet & payouts")}>Open wallet statement <span>→</span></button></article><article className="panel role-welcome-panel"><PanelHeading title="This week's performance" description="Across all live brand campaigns" /><div className="role-stat"><strong>74%</strong><span>submission completion</span></div><div className="progress"><i style={{ width: "74%" }}></i></div><div className="role-stat"><strong>8.4%</strong><span>average engagement rate</span></div><div className="progress"><i style={{ width: "62%" }}></i></div></article></section></> }

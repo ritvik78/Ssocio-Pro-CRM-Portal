@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import multer from 'multer'
 import nodemailer from 'nodemailer'
+import { verifyAuth } from '@supabase/server/core'
 import * as XLSX from 'xlsx'
 import { getSupabaseAdmin, isSupabaseServerConfigured } from './server/supabase.js'
 
@@ -84,6 +85,28 @@ app.get('/api/supabase/status', async (_request, response) => {
     console.error('Supabase server check failed:', error.message)
     response.json({ ok: true, configured: true, ready: false })
   }
+})
+
+app.get('/api/auth/me', async (request, response) => {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_PUBLISHABLE_KEY || !process.env.SUPABASE_JWKS_URL) {
+    return response.status(503).json({ ok: false, error: 'Supabase user verification is not configured' })
+  }
+  const authRequest = new Request('http://localhost/api/auth/me', {
+    headers: {
+      authorization: request.headers.authorization || '',
+      apikey: request.headers.apikey || '',
+    },
+  })
+  const result = await verifyAuth(authRequest, {
+    auth: 'user',
+    env: {
+      SUPABASE_URL: process.env.SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY,
+      SUPABASE_JWKS_URL: process.env.SUPABASE_JWKS_URL,
+    },
+  })
+  if (result.error) return response.status(401).json({ ok: false, error: 'Authentication required' })
+  response.json({ ok: true, user: result.data.userClaims })
 })
 
 app.get('/api/email/status', async (_request, response) => {

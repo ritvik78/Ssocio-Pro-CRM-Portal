@@ -86,6 +86,18 @@ const initialSubmissions = [
   },
 ];
 const cloneSubmissions = (items) => items.map((item) => ({ ...item }));
+const submissionIdentity = (item) => [item.creator, item.handle, item.campaign, item.submitted]
+  .map((value) => String(value || "").trim().toLowerCase())
+  .join("|");
+const removeDuplicateRows = (items) => {
+  const seen = new Set();
+  return items.filter((item) => {
+    const identity = submissionIdentity(item);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+};
 const offlineStorageKey = (audience) => `ssocio-pro-${audience}-submissions`;
 const readOfflineRows = (audience) => {
   try {
@@ -229,8 +241,8 @@ function App() {
   const [activeNav, setActiveNav] = useState("Overview");
   const [role, setRole] = useState("Ops / Admin");
   const [toast, setToast] = useState("");
-  const [brandSubmissions, setBrandSubmissions] = useState(() => readOfflineRows("brand") || cloneSubmissions(initialSubmissions));
-  const [influencerSubmissions, setInfluencerSubmissions] = useState(() => readOfflineRows("influencer") || cloneSubmissions(initialSubmissions));
+  const [brandSubmissions, setBrandSubmissions] = useState(() => removeDuplicateRows(readOfflineRows("brand") || cloneSubmissions(initialSubmissions)));
+  const [influencerSubmissions, setInfluencerSubmissions] = useState(() => removeDuplicateRows(readOfflineRows("influencer") || cloneSubmissions(initialSubmissions)));
   const [search, setSearch] = useState("");
   const fileInput = useRef(null);
   const notify = (message) => {
@@ -268,8 +280,9 @@ function App() {
     const loadAudience = async (audience, setter) => {
       const offlineRows = readOfflineRows(audience);
       if (offlineRows !== null) {
-        setter(offlineRows);
-        void persistAudience(audience, offlineRows);
+        const uniqueRows = removeDuplicateRows(offlineRows);
+        setter(uniqueRows);
+        void persistAudience(audience, uniqueRows);
         return;
       }
       if (!apiBase) return;
@@ -277,7 +290,11 @@ function App() {
         const response = await fetch(`${apiBase}/api/storage/submissions/${audience}`);
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Storage API unavailable");
-        if (result.rows.length) setter(result.rows);
+        if (result.rows.length) {
+          const uniqueRows = removeDuplicateRows(result.rows);
+          setter(uniqueRows);
+          if (uniqueRows.length !== result.rows.length) void persistAudience(audience, uniqueRows);
+        }
         else {
           const seed = cloneSubmissions(initialSubmissions);
           setter(seed);
@@ -305,6 +322,15 @@ function App() {
       items.filter((item) => item.creator !== creator),
     );
     notify(`${creator} removed from the imported queue`);
+  };
+  const removeDuplicateSubmissions = (audience) => {
+    let removed = 0;
+    setForAudience(audience, (items) => {
+      const uniqueRows = removeDuplicateRows(items);
+      removed = items.length - uniqueRows.length;
+      return uniqueRows;
+    });
+    notify(removed ? `${removed} duplicate submission${removed === 1 ? "" : "s"} removed` : "No duplicate submissions found");
   };
   const editSubmission = (audience, creator, field, value) =>
     setForAudience(audience, (items) =>
@@ -355,10 +381,10 @@ function App() {
       if (!rows.length) throw new Error("The first sheet is empty");
       const audience =
         activeNav === "Brand submissions" ? "brand" : "influencer";
-      setForAudience(audience, (current) => [
+      setForAudience(audience, (current) => removeDuplicateRows([
         ...rows.map(normalizeSubmission),
         ...current,
-      ]);
+      ]));
       notify(
         `${rows.length} submission${rows.length === 1 ? "" : "s"} imported from Excel`,
       );
@@ -500,6 +526,7 @@ function App() {
                 editSubmission("brand", creator, field, value)
               }
               removeSubmission={(creator) => removeSubmission("brand", creator)}
+              removeDuplicateSubmissions={() => removeDuplicateSubmissions("brand")}
               onAdd={(draft) => addSubmission("brand", draft)}
               onImport={() => fileInput.current?.click()}
             />
@@ -517,6 +544,7 @@ function App() {
               removeSubmission={(creator) =>
                 removeSubmission("influencer", creator)
               }
+              removeDuplicateSubmissions={() => removeDuplicateSubmissions("influencer")}
               onAdd={(draft) => addSubmission("influencer", draft)}
               onImport={() => fileInput.current?.click()}
             />
@@ -996,6 +1024,7 @@ function Submissions({
   updateSubmission,
   editSubmission,
   removeSubmission,
+  removeDuplicateSubmissions,
   onAdd,
   onImport,
 }) {
@@ -1079,6 +1108,11 @@ function Submissions({
           action="Import Excel"
           onAction={onImport}
         />
+        <div className="submission-tools">
+          <button className="text-button" onClick={removeDuplicateSubmissions}>
+            Remove duplicates <span>↻</span>
+          </button>
+        </div>
         <SubmissionTable
           submissions={filtered}
           review

@@ -1128,36 +1128,6 @@ function Submissions({
           removeSubmission={removeSubmission}
         />
       </article>
-      {showDuplicateChecker && (
-        <div className="dialog-backdrop" role="presentation" onClick={() => setShowDuplicateChecker(false)}>
-          <section className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-dialog-title" onClick={(event) => event.stopPropagation()}>
-            <div className="duplicate-dialog-heading">
-              <div>
-                <p className="eyebrow">DATA QUALITY / {audience.toUpperCase()}</p>
-                <h2 id="duplicate-dialog-title">Duplicate submission checker</h2>
-              </div>
-              <button className="dialog-close" aria-label="Close duplicate checker" onClick={() => setShowDuplicateChecker(false)}>×</button>
-            </div>
-            {duplicateGroups.length === 0 ? (
-              <div className="duplicate-empty"><span>✓</span><strong>No duplicate submissions found</strong><p>New duplicates will be flagged here without being removed.</p></div>
-            ) : (
-              <div className="duplicate-groups">
-                <p className="duplicate-summary">{duplicateGroups.length} duplicate group{duplicateGroups.length === 1 ? "" : "s"} flagged. Review the rows below before taking action.</p>
-                {duplicateGroups.map((group, groupIndex) => (
-                  <div className="duplicate-group" key={`${submissionIdentity(group[0])}-${groupIndex}`}>
-                    <strong>Duplicate group {groupIndex + 1}</strong>
-                    {group.map((item, itemIndex) => <div className="duplicate-row" key={`${item.creator}-${item.submitted}-${itemIndex}`}><span>{item.creator}</span><small>{item.handle} · {item.campaign} · {item.submitted}</small><Status value={item.status} /></div>)}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="duplicate-dialog-footer">
-              {duplicateGroups.length > 0 && <button className="danger-button" onClick={() => { onRemoveDuplicates(); setShowDuplicateChecker(false); }}>Remove all duplicates</button>}
-              <button className="primary-button" onClick={() => setShowDuplicateChecker(false)}>Close checker</button>
-            </div>
-          </section>
-        </div>
-      )}
     </>
   );
 }
@@ -1165,9 +1135,10 @@ function Campaigns({ notify }) {
   const [items, setItems] = useState(campaigns)
   const [editing, setEditing] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [draft, setDraft] = useState({ name: '', brand: '', budget: '$0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow' })
+  const [draft, setDraft] = useState({ name: '', brand: '', budget: '$0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow', image: '' })
   const update = (name, field, value) => setItems((current) => current.map((item) => item.name === name ? { ...item, [field]: value } : item))
-  const create = () => { if (!draft.name.trim() || !draft.brand.trim()) { notify('Campaign name and brand are required'); return }; setItems((current) => [{ ...draft, creators: Number(draft.creators) || 0, submitted: Number(draft.submitted) || 0 }, ...current]); setDraft({ name: '', brand: '', budget: '$0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow' }); setShowCreate(false); notify('Campaign created') }
+  const handleImage = (event) => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { notify('Choose an image file'); return }; const reader = new FileReader(); reader.onload = () => setDraft((current) => ({ ...current, image: String(reader.result) })); reader.readAsDataURL(file) }
+  const create = () => { if (!draft.name.trim() || !draft.brand.trim()) { notify('Campaign name and brand are required'); return }; setItems((current) => [{ ...draft, creators: Number(draft.creators) || 0, submitted: Number(draft.submitted) || 0 }, ...current]); setDraft({ name: '', brand: '', budget: '$0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow', image: '' }); setShowCreate(false); notify('Campaign created') }
   return (
     <>
       <PageHeader
@@ -1177,14 +1148,12 @@ function Campaigns({ notify }) {
         action="Create campaign"
         onAction={() => setShowCreate(true)}
       />
-      {showCreate && <div className="panel inline-create-form"><h2>New campaign</h2><div className="form-grid"><input placeholder="Campaign name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /><input placeholder="Brand name" value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} /><input placeholder="Budget" value={draft.budget} onChange={(event) => setDraft({ ...draft, budget: event.target.value })} /><input type="number" placeholder="Creators" value={draft.creators} onChange={(event) => setDraft({ ...draft, creators: event.target.value })} /></div><div className="form-actions"><button className="secondary-button" onClick={() => setShowCreate(false)}>Cancel</button><button className="primary-button" onClick={create}>Create campaign</button></div></div>}
+      {showCreate && <div className="panel inline-create-form"><h2>New campaign</h2><div className="form-grid"><input placeholder="Campaign name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /><input placeholder="Brand name" value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} /><input placeholder="Budget" value={draft.budget} onChange={(event) => setDraft({ ...draft, budget: event.target.value })} /><input type="number" placeholder="Creators" value={draft.creators} onChange={(event) => setDraft({ ...draft, creators: event.target.value })} /></div><label className="image-upload-field">Campaign image<input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImage} /></label>{draft.image && <img className="campaign-image-preview" src={draft.image} alt="Campaign preview" />}<div className="form-actions"><button className="secondary-button" onClick={() => setShowCreate(false)}>Cancel</button><button className="primary-button" onClick={create}>Create campaign</button></div></div>}
       <section className="campaign-card-grid">
         {items.map((campaign) => (
           <article className="panel campaign-card" key={campaign.name}>
             <div className="campaign-card-top">
-              <div className={`campaign-brand brand-${campaign.tone}`}>
-                {campaign.name[0]}
-              </div>
+              {campaign.image ? <img className="campaign-image" src={campaign.image} alt={`${campaign.name} campaign`} /> : <div className={`campaign-brand brand-${campaign.tone}`}>{campaign.name[0]}</div>}
               <Status value={campaign.status} />
             </div>
             {editing === campaign.name ? <div className="card-edit-fields"><input value={campaign.name} onChange={(event) => update(campaign.name, 'name', event.target.value)} /><input value={campaign.brand} onChange={(event) => update(campaign.name, 'brand', event.target.value)} /><input value={campaign.budget} onChange={(event) => update(campaign.name, 'budget', event.target.value)} /></div> : <><h2>{campaign.name}</h2><p>{campaign.brand} · creator activation</p></>}

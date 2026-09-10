@@ -97,6 +97,15 @@ const findDuplicateGroups = (items) => {
   });
   return [...groups.values()].filter((group) => group.length > 1);
 };
+const removeDuplicateRows = (items) => {
+  const seen = new Set();
+  return items.filter((item) => {
+    const identity = submissionIdentity(item);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+};
 const offlineStorageKey = (audience) => `ssocio-pro-${audience}-submissions`;
 const readOfflineRows = (audience) => {
   try {
@@ -319,6 +328,15 @@ function App() {
     );
     notify(`${creator} removed from the imported queue`);
   };
+  const removeDuplicateSubmissions = (audience) => {
+    let removed = 0;
+    setForAudience(audience, (items) => {
+      const uniqueRows = removeDuplicateRows(items);
+      removed = items.length - uniqueRows.length;
+      return uniqueRows;
+    });
+    notify(`${removed} duplicate submission${removed === 1 ? "" : "s"} removed`);
+  };
   const editSubmission = (audience, creator, field, value) =>
     setForAudience(audience, (items) =>
       items.map((item) =>
@@ -513,6 +531,7 @@ function App() {
                 editSubmission("brand", creator, field, value)
               }
               removeSubmission={(creator) => removeSubmission("brand", creator)}
+              onRemoveDuplicates={() => removeDuplicateSubmissions("brand")}
               onAdd={(draft) => addSubmission("brand", draft)}
               onImport={() => fileInput.current?.click()}
             />
@@ -530,6 +549,7 @@ function App() {
               removeSubmission={(creator) =>
                 removeSubmission("influencer", creator)
               }
+              onRemoveDuplicates={() => removeDuplicateSubmissions("influencer")}
               onAdd={(draft) => addSubmission("influencer", draft)}
               onImport={() => fileInput.current?.click()}
             />
@@ -1009,6 +1029,7 @@ function Submissions({
   updateSubmission,
   editSubmission,
   removeSubmission,
+  onRemoveDuplicates,
   onAdd,
   onImport,
 }) {
@@ -1130,7 +1151,10 @@ function Submissions({
                 ))}
               </div>
             )}
-            <div className="duplicate-dialog-footer"><button className="primary-button" onClick={() => setShowDuplicateChecker(false)}>Close checker</button></div>
+            <div className="duplicate-dialog-footer">
+              {duplicateGroups.length > 0 && <button className="danger-button" onClick={() => { onRemoveDuplicates(); setShowDuplicateChecker(false); }}>Remove all duplicates</button>}
+              <button className="primary-button" onClick={() => setShowDuplicateChecker(false)}>Close checker</button>
+            </div>
           </section>
         </div>
       )}

@@ -9,13 +9,15 @@ import nodemailer from 'nodemailer'
 import * as XLSX from 'xlsx'
 
 const app = express()
-const port = Number(process.env.API_PORT || 8787)
+const port = Number(process.env.PORT || process.env.API_PORT || 8787)
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }))
 app.use(express.json({ limit: '1mb' }))
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const storageDir = path.join(__dirname, 'data')
+const clientDistDir = path.join(__dirname, 'dist')
+app.use(express.static(clientDistDir))
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 const audiences = new Set(['brand', 'influencer'])
 
@@ -146,5 +148,7 @@ app.post('/api/email/send', async (request, response) => {
     response.status(502).json({ ok: false, error: 'Email delivery failed. Check your SMTP settings.' })
   }
 })
+
+app.get('/', (_request, response) => response.sendFile(path.join(clientDistDir, 'index.html')))
 
 app.listen(port, () => console.log(`Ssocio Pro email API listening on http://localhost:${port}`))

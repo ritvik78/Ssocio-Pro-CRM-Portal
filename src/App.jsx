@@ -86,26 +86,6 @@ const initialSubmissions = [
   },
 ];
 const cloneSubmissions = (items) => items.map((item) => ({ ...item }));
-const submissionIdentity = (item) => [item.creator, item.handle, item.campaign, item.submitted]
-  .map((value) => String(value || "").trim().toLowerCase())
-  .join("|");
-const findDuplicateGroups = (items) => {
-  const groups = new Map();
-  items.forEach((item) => {
-    const identity = submissionIdentity(item);
-    groups.set(identity, [...(groups.get(identity) || []), item]);
-  });
-  return [...groups.values()].filter((group) => group.length > 1);
-};
-const removeDuplicateRows = (items) => {
-  const seen = new Set();
-  return items.filter((item) => {
-    const identity = submissionIdentity(item);
-    if (seen.has(identity)) return false;
-    seen.add(identity);
-    return true;
-  });
-};
 const offlineStorageKey = (audience) => `ssocio-pro-${audience}-submissions`;
 const readOfflineRows = (audience) => {
   try {
@@ -297,9 +277,7 @@ function App() {
         const response = await fetch(`${apiBase}/api/storage/submissions/${audience}`);
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Storage API unavailable");
-        if (result.rows.length) {
-          setter(result.rows);
-        }
+        if (result.rows.length) setter(result.rows);
         else {
           const seed = cloneSubmissions(initialSubmissions);
           setter(seed);
@@ -327,15 +305,6 @@ function App() {
       items.filter((item) => item.creator !== creator),
     );
     notify(`${creator} removed from the imported queue`);
-  };
-  const removeDuplicateSubmissions = (audience) => {
-    let removed = 0;
-    setForAudience(audience, (items) => {
-      const uniqueRows = removeDuplicateRows(items);
-      removed = items.length - uniqueRows.length;
-      return uniqueRows;
-    });
-    notify(`${removed} duplicate submission${removed === 1 ? "" : "s"} removed`);
   };
   const editSubmission = (audience, creator, field, value) =>
     setForAudience(audience, (items) =>
@@ -531,7 +500,6 @@ function App() {
                 editSubmission("brand", creator, field, value)
               }
               removeSubmission={(creator) => removeSubmission("brand", creator)}
-              onRemoveDuplicates={() => removeDuplicateSubmissions("brand")}
               onAdd={(draft) => addSubmission("brand", draft)}
               onImport={() => fileInput.current?.click()}
             />
@@ -549,7 +517,6 @@ function App() {
               removeSubmission={(creator) =>
                 removeSubmission("influencer", creator)
               }
-              onRemoveDuplicates={() => removeDuplicateSubmissions("influencer")}
               onAdd={(draft) => addSubmission("influencer", draft)}
               onImport={() => fileInput.current?.click()}
             />
@@ -1029,12 +996,10 @@ function Submissions({
   updateSubmission,
   editSubmission,
   removeSubmission,
-  onRemoveDuplicates,
   onAdd,
   onImport,
 }) {
   const [showCreate, setShowCreate] = useState(false);
-  const [showDuplicateChecker, setShowDuplicateChecker] = useState(false);
   const emptyDraft = {
     creator: "",
     handle: "",
@@ -1046,7 +1011,6 @@ function Submissions({
     status: "Needs review",
   };
   const [draft, setDraft] = useState(emptyDraft);
-  const duplicateGroups = findDuplicateGroups(submissions);
   const filtered = submissions.filter((item) =>
     `${item.creator} ${item.campaign} ${item.status}`
       .toLowerCase()
@@ -1067,11 +1031,6 @@ function Submissions({
         action="Add submission"
         onAction={() => setShowCreate(true)}
       />
-      <div className="submission-page-actions">
-        <button className="secondary-button" onClick={() => setShowDuplicateChecker(true)}>
-          Duplicate checker {duplicateGroups.length > 0 && <b>{duplicateGroups.length}</b>}
-        </button>
-      </div>
       {showCreate && (
         <section className="panel inline-create-form submission-create-form">
           <h2>New submission</h2>

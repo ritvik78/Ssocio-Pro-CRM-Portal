@@ -620,12 +620,12 @@ function AuthPage({ onAuthenticated }) {
         </p>
         <form onSubmit={submit}>
           <label>
-            Username
+            Username or email
             <input
               type="text"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              placeholder="your.username"
+              placeholder="you@company.com or username"
               autoComplete="username"
             />
           </label>

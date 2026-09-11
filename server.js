@@ -74,7 +74,7 @@ const transporter = () => nodemailer.createTransport({
 })
 
 const validRoles = new Set(['Ops / Admin', 'Brand', 'Influencer'])
-const isValidUsername = (value) => /^[a-zA-Z0-9_.]{3,30}$/.test(value)
+const isValidUsername = (value) => /^[a-zA-Z0-9_.@]{3,50}$/.test(value)
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex')
 const randomToken = () => crypto.randomBytes(32).toString('hex')
 const hashPassword = (password) => new Promise((resolve, reject) => {
@@ -180,7 +180,7 @@ app.get('/api/auth/session', async (request, response) => {
 app.post('/api/auth/signup', async (request, response) => {
   const { username, password, role } = request.body || {}
   const cleanUsername = String(username || '').trim()
-  if (!isValidUsername(cleanUsername)) return response.status(400).json({ ok: false, error: 'Username must be 3-30 characters using letters, numbers, dots, or underscores' })
+  if (!isValidUsername(cleanUsername)) return response.status(400).json({ ok: false, error: 'Username must be 3-50 characters using letters, numbers, dots, underscores, or an @' })
   if (String(password || '').length < 6) return response.status(400).json({ ok: false, error: 'Password must be at least 6 characters' })
   if (!validRoles.has(role)) return response.status(400).json({ ok: false, error: 'Choose a valid role' })
   const database = getDatabasePool()

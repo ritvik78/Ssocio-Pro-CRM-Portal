@@ -65,6 +65,8 @@ API endpoints:
 
 On the frontend, set `VITE_API_URL` when the API is hosted separately (for example `https://your-email-api.example.com`); otherwise the app calls the same origin.
 
+A fixed admin account is seeded for testing: **`admin@gmail.com`** with password **`admin@123`** (role `Ops / Admin`). You can also register new accounts with the **New here? Create an account** link; username and email-style identifiers are both accepted.
+
 ## Supabase MCP
 
 The project MCP configuration is stored in `.mcp.json`. After installing the Claude CLI, authenticate the configured Supabase server from a regular terminal:

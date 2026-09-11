@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: ssocio-pro-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        sync: false
+        value: 10000
+      - key: CLIENT_ORIGIN
+        value: https://ritvik78.github.io
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        value: "Ssocio Pro <noreply@ssociopro.com>"

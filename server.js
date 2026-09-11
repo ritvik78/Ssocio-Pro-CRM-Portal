@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
+import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -72,6 +73,32 @@ const transporter = () => nodemailer.createTransport({
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
 })
 
+const validRoles = new Set(['Ops / Admin', 'Brand', 'Influencer'])
+const isValidUsername = (value) => /^[a-zA-Z0-9_.]{3,30}$/.test(value)
+const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex')
+const randomToken = () => crypto.randomBytes(32).toString('hex')
+const hashPassword = (password) => new Promise((resolve, reject) => {
+  const salt = crypto.randomBytes(16).toString('hex')
+  crypto.scrypt(password, salt, 64, (error, derivedKey) => {
+    if (error) return reject(error)
+    resolve(`${salt}:${derivedKey.toString('hex')}`)
+  })
+})
+const verifyPassword = (password, stored) => new Promise((resolve) => {
+  const [salt, key] = String(stored).split(':')
+  if (!salt || !key) return resolve(false)
+  crypto.scrypt(password, salt, 64, (error, derivedKey) => {
+    if (error) return resolve(false)
+    const expected = Buffer.from(key, 'hex')
+    resolve(derivedKey.length === expected.length && crypto.timingSafeEqual(derivedKey, expected))
+  })
+})
+const bearerToken = (request) => {
+  const authorization = request.headers.authorization || ''
+  return authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
+}
+const authUnavailable = (response) => response.status(503).json({ ok: false, error: 'The authentication database is not configured. Add DATABASE_URL and DIRECT_URL to the backend .env, then create the users table from supabase-schema.sql.' })
+
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true, emailConfigured: missingSmtp().length === 0, supabaseConfigured: isSupabaseServerConfigured(), databaseConfigured: isDatabaseConfigured(), prismaConfigured: isPrismaConfigured() })
 })
@@ -133,6 +160,79 @@ app.get('/api/auth/me', async (request, response) => {
   })
   if (result.error) return response.status(401).json({ ok: false, error: 'Authentication required' })
   response.json({ ok: true, user: result.data.userClaims })
+})
+
+app.get('/api/auth/session', async (request, response) => {
+  const token = bearerToken(request)
+  if (!token) return response.status(401).json({ ok: false, error: 'Sign in required' })
+  const database = getDatabasePool()
+  if (!database) return authUnavailable(response)
+  try {
+    const result = await database.query('select username, role from users where token_hash = $1', [sha256(token)])
+    if (!result.rows.length) return response.status(401).json({ ok: false, error: 'Session expired. Sign in again.' })
+    response.json({ ok: true, user: result.rows[0] })
+  } catch (error) {
+    console.error('Auth session check failed:', error.message)
+    response.status(500).json({ ok: false, error: 'Could not verify your session' })
+  }
+})
+
+app.post('/api/auth/signup', async (request, response) => {
+  const { username, password, role } = request.body || {}
+  const cleanUsername = String(username || '').trim()
+  if (!isValidUsername(cleanUsername)) return response.status(400).json({ ok: false, error: 'Username must be 3-30 characters using letters, numbers, dots, or underscores' })
+  if (String(password || '').length < 6) return response.status(400).json({ ok: false, error: 'Password must be at least 6 characters' })
+  if (!validRoles.has(role)) return response.status(400).json({ ok: false, error: 'Choose a valid role' })
+  const database = getDatabasePool()
+  if (!database) return authUnavailable(response)
+  try {
+    const existing = await database.query('select id from users where username = $1', [cleanUsername])
+    if (existing.rows.length) return response.status(409).json({ ok: false, error: 'Username is already taken' })
+    const token = randomToken()
+    const passwordHash = await hashPassword(String(password))
+    await database.query(
+      'insert into users (username, password_hash, role, token_hash) values ($1, $2, $3, $4)',
+      [cleanUsername, passwordHash, role, sha256(token)],
+    )
+    response.json({ ok: true, user: { username: cleanUsername, role }, token })
+  } catch (error) {
+    console.error('Sign up failed:', error.message)
+    response.status(500).json({ ok: false, error: 'Could not create your account. Check that the users table exists in the database.' })
+  }
+})
+
+app.post('/api/auth/login', async (request, response) => {
+  const { username, password } = request.body || {}
+  const cleanUsername = String(username || '').trim()
+  if (!cleanUsername || !password) return response.status(400).json({ ok: false, error: 'Enter your username and password' })
+  const database = getDatabasePool()
+  if (!database) return authUnavailable(response)
+  try {
+    const result = await database.query('select id, username, role, password_hash from users where username = $1', [cleanUsername])
+    const user = result.rows[0]
+    if (!user || !(await verifyPassword(String(password), user.password_hash))) {
+      return response.status(401).json({ ok: false, error: 'Invalid username or password' })
+    }
+    const token = randomToken()
+    await database.query('update users set token_hash = $1 where id = $2', [sha256(token), user.id])
+    response.json({ ok: true, user: { username: user.username, role: user.role }, token })
+  } catch (error) {
+    console.error('Sign in failed:', error.message)
+    response.status(500).json({ ok: false, error: 'Could not sign you in. Check that the users table exists in the database.' })
+  }
+})
+
+app.post('/api/auth/logout', async (request, response) => {
+  const token = bearerToken(request)
+  const database = getDatabasePool()
+  if (token && database) {
+    try {
+      await database.query('update users set token_hash = null where token_hash = $1', [sha256(token)])
+    } catch (error) {
+      console.error('Could not revoke session:', error.message)
+    }
+  }
+  response.json({ ok: true })
 })
 
 app.get('/api/email/status', async (_request, response) => {

@@ -28,11 +28,11 @@ The backend also supports `@supabase/server`. Set `SUPABASE_URL`, `SUPABASE_SECR
 
 Authenticated clients can send a Supabase access token to `/api/auth/me` as `Authorization: Bearer <token>`. The endpoint verifies the token with the configured JWKS URL and returns the verified user claims.
 
-For direct backend PostgreSQL access, set `DATABASE_URL` only on the Node host. Use `postgresql://postgres:YOUR_PASSWORD@db.ybdlziufamgufmghmiou.supabase.co:5432/postgres` as the template and percent-encode special characters in the password. The connection check is available at `/api/database/status`; the browser never receives this connection string.
+For direct backend PostgreSQL access, set `DATABASE_URL` only on the Node host. Use `postgresql://postgres.YOUR_PROJECT_REF:YOUR_PASSWORD@aws-0-<region>.pooler.supabase.com:6543/postgres` (transaction pooler) as the template and percent-encode special characters in the password. The connection check is available at `/api/database/status`; the browser never receives this connection string.
 
 ## Prisma ORM
 
-Prisma is configured in `prisma/schema.prisma` for the Supabase `submissions` table. Set both `DATABASE_URL` (transaction pooler) and `DIRECT_URL` (session pooler for migrations) in the backend environment, then run:
+Prisma is configured in `prisma/schema.prisma` for the Supabase `submissions` and `users` tables. Set both `DATABASE_URL` (transaction pooler) and `DIRECT_URL` (session pooler for migrations) in the backend environment, then run:
 
 ```powershell
 npx prisma generate
@@ -42,6 +42,28 @@ npx prisma db pull
 Use `npx prisma migrate dev` only after the database password is configured and you are ready to manage schema migrations from this project. Percent-encode special characters in both connection-string passwords.
 
 The backend exposes `/api/prisma/status` for a non-secret connection check. The Prisma client is created lazily and is never bundled into the browser build.
+
+## Accounts & sign-in
+
+The portal opens on a sign-in page on every visit. New visitors click **New here? Create an account** to register with a username and password; existing users use **Already a user? Log in** to sign back in. After signing in, the dashboard greets `Welcome <username>` and the sidebar shows the signed-in user and role.
+
+Accounts are stored in the `users` table of the same Supabase Postgres database that holds submissions. Run the updated `supabase-schema.sql` in the Supabase SQL Editor to create it. The table holds `username` (unique), a `password_hash`, a `role`, and an optional `token_hash` for the active session.
+
+Then add the backend database settings so the API can read and write accounts:
+
+- `DATABASE_URL` (transaction pooler)
+- `DIRECT_URL` (session pooler for migrations)
+
+Passwords are hashed with Node's `scrypt` before being stored, and each signed-in session stores a random token hash in `users.token_hash`.
+
+API endpoints:
+
+- `POST /api/auth/signup` — create an account (`username`, `password` at least 6 characters, `role` one of `Ops / Admin`, `Brand`, `Influencer`)
+- `POST /api/auth/login` — verify a username and password, returns `{ user, token }`
+- `GET /api/auth/session` — verify a `Authorization: Bearer <token>` session
+- `POST /api/auth/logout` — revoke the session token
+
+On the frontend, set `VITE_API_URL` when the API is hosted separately (for example `https://your-email-api.example.com`); otherwise the app calls the same origin.
 
 ## Supabase MCP
 

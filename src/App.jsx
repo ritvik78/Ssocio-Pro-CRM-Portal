@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { loadSupabaseSubmissions, saveSupabaseSubmissions, supabase } from "./lib/supabase";
+import { loginUser, logoutUser, signupUser } from "./lib/auth";
 import "./App.css";
 
 const navItems = [
@@ -225,8 +226,24 @@ const normalizeSubmission = (row, index) => {
   };
 };
 
+const userInitials = (name) =>
+  String(name || "?")
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "?";
+const roleTitle = (role) =>
+  role === "Ops / Admin"
+    ? "Administrator"
+    : role === "Brand"
+      ? "Brand manager"
+      : "Creator";
+
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState("");
   const [activeNav, setActiveNav] = useState("Overview");
   const [role, setRole] = useState("Ops / Admin");
   const [toast, setToast] = useState("");
@@ -391,15 +408,30 @@ function App() {
     event.target.value = "";
   };
 
-  const login = (selectedRole) => {
-    setRole(selectedRole);
+  const onAuthenticated = (nextUser, sessionToken) => {
+    setUser(nextUser);
+    setToken(sessionToken);
+    setRole(nextUser.role);
     setActiveNav("Overview");
-    setIsAuthenticated(true);
+    setSearch("");
+  };
+  const handleLogout = async () => {
+    if (token) {
+      try {
+        await logoutUser(token);
+      } catch {
+        // Best-effort session revocation; local state is cleared regardless.
+      }
+    }
+    setToken("");
+    setUser(null);
+    setActiveNav("Overview");
+    setSearch("");
   };
 
-  if (!isAuthenticated) return <LoginPage onLogin={login} />;
+  if (!user) return <AuthPage onAuthenticated={onAuthenticated} />;
 
-  const roleHome = role === "Brand" ? <BrandHome goTo={goTo} /> : role === "Influencer" ? <InfluencerHome goTo={goTo} /> : <Dashboard goTo={goTo} notify={notify} submissions={brandSubmissions} updateSubmission={(creator, status) => updateSubmission("brand", creator, status)} editSubmission={(creator, field, value) => editSubmission("brand", creator, field, value)} removeSubmission={(creator) => removeSubmission("brand", creator)} />;
+  const roleHome = role === "Brand" ? <BrandHome goTo={goTo} /> : role === "Influencer" ? <InfluencerHome goTo={goTo} /> : <Dashboard username={user.username} goTo={goTo} notify={notify} submissions={brandSubmissions} updateSubmission={(creator, status) => updateSubmission("brand", creator, status)} editSubmission={(creator, field, value) => editSubmission("brand", creator, field, value)} removeSubmission={(creator) => removeSubmission("brand", creator)} />;
 
   return (
     <div className="app-shell">
@@ -448,14 +480,14 @@ function App() {
             <span>Settings</span>
           </button>}
           <div className="profile">
-            <div className="avatar avatar-purple">RV</div>
+            <div className="avatar avatar-purple">{userInitials(user.username)}</div>
             <div>
-              <strong>Rithik Verma</strong>
-              <small>Administrator</small>
+              <strong>{user.username}</strong>
+              <small>{roleTitle(role)}</small>
             </div>
             <button
               className="more"
-              onClick={() => setIsAuthenticated(false)}
+              onClick={handleLogout}
               aria-label="Log out"
             >
               Log out
@@ -533,20 +565,101 @@ function App() {
   );
 }
 
-function LoginPage({ onLogin }) {
-  const [email, setEmail] = useState("");
+function AuthPage({ onAuthenticated }) {
+  const [mode, setMode] = useState("signin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState("Ops / Admin");
+  const [role, setRole] = useState("Ops / Admin");
   const [error, setError] = useState("");
-  const submit = (event) => {
+  const [busy, setBusy] = useState(false);
+  const isSignUp = mode === "signup";
+  const switchMode = (nextMode) => {
+    setMode(nextMode);
+    setError("");
+  };
+  const submit = async (event) => {
     event.preventDefault();
-    if (!email.trim() || !email.includes("@") || !password.trim()) {
-      setError("Enter a valid email and password to continue.");
+    setError("");
+    const cleanUsername = username.trim();
+    if (!cleanUsername) {
+      setError("Enter your username.");
       return;
     }
-    onLogin(selectedRole);
+    if (!password) {
+      setError("Enter your password.");
+      return;
+    }
+    if (isSignUp && password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = isSignUp
+        ? await signupUser(cleanUsername, password, role)
+        : await loginUser(cleanUsername, password);
+      onAuthenticated(result.user, result.token);
+    } catch (caught) {
+      setError(caught.message || "Could not connect to the authentication service.");
+    } finally {
+      setBusy(false);
+    }
   };
-  return <main className="login-page"><div className="login-brand"><img src={logoPath} alt="Ssocio Pro" /></div><section className="login-card"><p className="eyebrow">SSOCIO PRO PORTAL</p><h1>Welcome back</h1><p className="login-copy">Sign in to manage creator campaigns, submissions, and payouts.</p><form onSubmit={submit}><label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoComplete="email" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete="current-password" /></label><label>Sign in as<select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)}><option>Ops / Admin</option><option>Brand</option><option>Influencer</option></select></label>{error && <p className="login-error">{error}</p>}<button className="primary-button login-button" type="submit">Sign in <span>→</span></button></form><small className="login-demo">Demo portal · role access is ready for integration with your auth provider</small></section></main>;
+  return (
+    <main className="login-page">
+      <div className="login-brand">
+        <img src={logoPath} alt="Ssocio Pro" />
+      </div>
+      <section className="login-card">
+        <p className="eyebrow">SSOCIO PRO PORTAL</p>
+        <h1>{isSignUp ? "Create your account" : "Welcome back"}</h1>
+        <p className="login-copy">
+          {isSignUp
+            ? "Sign up to manage creator campaigns, submissions, and payouts."
+            : "Sign in to manage creator campaigns, submissions, and payouts."}
+        </p>
+        <form onSubmit={submit}>
+          <label>
+            Username
+            <input
+              type="text"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="your.username"
+              autoComplete="username"
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={isSignUp ? "At least 6 characters" : "Enter your password"}
+              autoComplete={isSignUp ? "new-password" : "current-password"}
+            />
+          </label>
+          {isSignUp && (
+            <label>
+              Sign up as
+              <select value={role} onChange={(event) => setRole(event.target.value)}>
+                <option>Ops / Admin</option>
+                <option>Brand</option>
+                <option>Influencer</option>
+              </select>
+            </label>
+          )}
+          {error && <p className="login-error">{error}</p>}
+          <button className="primary-button login-button" type="submit" disabled={busy}>
+            {isSignUp ? "Create account" : "Sign in"} <span>→</span>
+          </button>
+        </form>
+        <button className="login-switch" onClick={() => switchMode(isSignUp ? "signin" : "signup")}>
+          {isSignUp ? "Already a user? Log in" : "New here? Create an account"}
+        </button>
+      </section>
+    </main>
+  );
 }
 
 function BrandHome({ goTo }) { return <><PageHeader eyebrow="BRAND WORKSPACE" title="Your campaigns, at a glance" description="Track creator submissions, campaign performance, and return on investment." action="View submissions" onAction={() => goTo("Influencer submissions")} /><section className="metric-grid"><Metric label="ACTIVE CAMPAIGNS" value="08" detail="2" color="blue" /><Metric label="SUBMISSIONS RECEIVED" value="42" detail="8" /><Metric label="TOTAL REACH" value="1.8M" detail="14%" color="yellow" /><Metric label="CAMPAIGN ROI" value="3.8x" detail=".6x" color="green" /></section><section className="role-dashboard-grid"><article className="panel role-welcome-panel"><PanelHeading title="Brand action center" description="Keep your creator activations moving" /><button className="role-action" onClick={() => goTo("Campaigns")}>Manage campaigns <span>→</span></button><button className="role-action" onClick={() => goTo("Influencer submissions")}>Review influencer submissions <span>→</span></button><button className="role-action" onClick={() => goTo("Wallet & payouts")}>Open wallet statement <span>→</span></button></article><article className="panel role-welcome-panel"><PanelHeading title="This week's performance" description="Across all live brand campaigns" /><div className="role-stat"><strong>74%</strong><span>submission completion</span></div><div className="progress"><i style={{ width: "74%" }}></i></div><div className="role-stat"><strong>8.4%</strong><span>average engagement rate</span></div><div className="progress"><i style={{ width: "62%" }}></i></div></article></section></> }
@@ -609,7 +722,7 @@ function Metric({ label, value, detail, color = "coral" }) {
 function Status({ value }) {
   return (
     <span
-RithikSSclassName={`status status-${value.toLowerCase().replaceAll(" ", "-")}`}
+      className={`status status-${value.toLowerCase().replaceAll(" ", "-")}`}
     >
       {value}
     </span>
@@ -620,6 +733,7 @@ function Avatar({ item }) {
 }
 
 function Dashboard({
+  username,
   goTo,
   notify,
   submissions,
@@ -633,7 +747,7 @@ function Dashboard({
         eyebrow="WEDNESDAY, SEPTEMBER 09, 2026"
         title={
           <>
-            Good morning, Rithik <span>✦</span>
+            Welcome, {username} <span>✦</span>
           </>
         }
         description="Here is what is happening across your creator network today."

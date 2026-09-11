@@ -243,7 +243,6 @@ const roleTitle = (role) =>
 
 function App() {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState("");
   const [activeNav, setActiveNav] = useState("Overview");
   const [role, setRole] = useState("Ops / Admin");
   const [toast, setToast] = useState("");
@@ -408,22 +407,18 @@ function App() {
     event.target.value = "";
   };
 
-  const onAuthenticated = (nextUser, sessionToken) => {
+  const onAuthenticated = (nextUser) => {
     setUser(nextUser);
-    setToken(sessionToken);
     setRole(nextUser.role);
     setActiveNav("Overview");
     setSearch("");
   };
   const handleLogout = async () => {
-    if (token) {
-      try {
-        await logoutUser(token);
-      } catch {
-        // Best-effort session revocation; local state is cleared regardless.
-      }
+    try {
+      await logoutUser();
+    } catch {
+      // Best-effort sign out; local state is cleared regardless.
     }
-    setToken("");
     setUser(null);
     setActiveNav("Overview");
     setSearch("");
@@ -567,22 +562,26 @@ function App() {
 
 function AuthPage({ onAuthenticated }) {
   const [mode, setMode] = useState("signin");
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Ops / Admin");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
   const isSignUp = mode === "signup";
   const switchMode = (nextMode) => {
     setMode(nextMode);
     setError("");
+    setInfo("");
   };
   const submit = async (event) => {
     event.preventDefault();
     setError("");
-    const cleanUsername = username.trim();
-    if (!cleanUsername) {
-      setError("Enter your username.");
+    setInfo("");
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError("Enter a valid email address.");
       return;
     }
     if (!password) {
@@ -596,9 +595,15 @@ function AuthPage({ onAuthenticated }) {
     setBusy(true);
     try {
       const result = isSignUp
-        ? await signupUser(cleanUsername, password, role)
-        : await loginUser(cleanUsername, password);
-      onAuthenticated(result.user, result.token);
+        ? await signupUser(cleanEmail, password, role, name)
+        : await loginUser(cleanEmail, password);
+      if (isSignUp && result.requiresEmailConfirmation) {
+        setInfo("Account created! Check your email to confirm, then sign in.");
+        setMode("signin");
+        setPassword("");
+        return;
+      }
+      onAuthenticated(result.user);
     } catch (caught) {
       setError(caught.message || "Could not connect to the authentication service.");
     } finally {
@@ -616,17 +621,29 @@ function AuthPage({ onAuthenticated }) {
         <p className="login-copy">
           {isSignUp
             ? "Sign up to manage creator campaigns, submissions, and payouts."
-            : "Sign in to manage creator campaigns, submissions, and payouts."}
+            : "Sign in with your Supabase account."}
         </p>
         <form onSubmit={submit}>
+          {isSignUp && (
+            <label>
+              Full name
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Your name"
+                autoComplete="name"
+              />
+            </label>
+          )}
           <label>
-            Username or email
+            Email address
             <input
-              type="text"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder="you@company.com or username"
-              autoComplete="username"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@company.com"
+              autoComplete="email"
             />
           </label>
           <label>
@@ -650,6 +667,7 @@ function AuthPage({ onAuthenticated }) {
             </label>
           )}
           {error && <p className="login-error">{error}</p>}
+          {info && <p className="login-info">{info}</p>}
           <button className="primary-button login-button" type="submit" disabled={busy}>
             {isSignUp ? "Create account" : "Sign in"} <span>→</span>
           </button>

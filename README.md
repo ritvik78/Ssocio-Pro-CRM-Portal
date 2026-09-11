@@ -45,27 +45,15 @@ The backend exposes `/api/prisma/status` for a non-secret connection check. The 
 
 ## Accounts & sign-in
 
-The portal opens on a sign-in page on every visit. New visitors click **New here? Create an account** to register with a username and password; existing users use **Already a user? Log in** to sign back in. After signing in, the dashboard greets `Welcome <username>` and the sidebar shows the signed-in user and role.
+The portal opens on a sign-in page on every visit. New visitors click **New here? Create an account** to register with a name, email and password; existing users use **Already a user? Log in** to sign back in. After signing in, the dashboard greets `Welcome <name>` and the sidebar shows the signed-in user and role.
 
-Accounts are stored in the `users` table of the same Supabase Postgres database that holds submissions. Run the updated `supabase-schema.sql` in the Supabase SQL Editor to create it. The table holds `username` (unique), a `password_hash`, a `role`, and an optional `token_hash` for the active session.
+Accounts are stored in **Supabase Auth** (`auth.users`) — the same project that holds submissions — so sign-in works on a static GitHub Pages site with no backend needed. `src/lib/auth.js` uses the browser Supabase client (`signInWithPassword` / `signUp` / `signOut`), and the signed-in user's name and role are read from the account's user metadata.
 
-Then add the backend database settings so the API can read and write accounts:
+New sign-ups may require confirming the email first (depending on the project's `Enable email confirmations` setting). When confirmation is required, the app shows a notice and switches to the log-in form; the password sign-in only works once the email has been confirmed in Supabase.
 
-- `DATABASE_URL` (transaction pooler)
-- `DIRECT_URL` (session pooler for migrations)
+A fixed admin account is created by `supabase-schema.sql` for testing: **`admin@gmail.com`** with password **`admin@123`** (role `Ops / Admin`). The SQL mirrors a GoTrue-created row exactly — bcrypt cost 10, `user_metadata` containing `sub`/`email`/`email_verified`/`phone_verified`, a matching `auth.identities` row, and all token columns as empty strings (`''`) rather than `NULL`. Missing any of these makes log-in fail with `Database error querying schema`.
 
-Passwords are hashed with Node's `scrypt` before being stored, and each signed-in session stores a random token hash in `users.token_hash`.
-
-API endpoints:
-
-- `POST /api/auth/signup` — create an account (`username`, `password` at least 6 characters, `role` one of `Ops / Admin`, `Brand`, `Influencer`)
-- `POST /api/auth/login` — verify a username and password, returns `{ user, token }`
-- `GET /api/auth/session` — verify a `Authorization: Bearer <token>` session
-- `POST /api/auth/logout` — revoke the session token
-
-On the frontend, set `VITE_API_URL` when the API is hosted separately (for example `https://your-email-api.example.com`); otherwise the app calls the same origin.
-
-A fixed admin account is seeded for testing: **`admin@gmail.com`** with password **`admin@123`** (role `Ops / Admin`). You can also register new accounts with the **New here? Create an account** link; username and email-style identifiers are both accepted.
+The old custom backend endpoints `/api/auth/signup|login|session|logout` and the `public.users` table are retained in `server.js` for compatibility but are no longer called by the frontend. Set `VITE_API_URL` only when the API is hosted separately (for example `https://your-email-api.example.com`); otherwise the app ignores it for authentication.
 
 ## Supabase MCP
 

@@ -1,27 +1,36 @@
-const apiBase =
-  import.meta.env.VITE_API_URL ||
-  (window.location.hostname === "localhost" ||
-  window.location.hostname === "127.0.0.1"
-    ? "http://localhost:8787"
-    : "");
+import { supabase } from "./supabase";
 
-const authRequest = async (path, body, token) => {
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${apiBase}${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body || {}),
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "Authentication request failed");
-  return result;
+const normalizeUser = (authUser) => {
+  const meta = authUser.user_metadata || {};
+  return {
+    username: meta.name || authUser.email.split("@")[0],
+    email: authUser.email,
+    role: meta.role || "Ops / Admin",
+  };
 };
 
-export const signupUser = (username, password, role) =>
-  authRequest("/api/auth/signup", { username, password, role });
+export const loginUser = async (email, password) => {
+  if (!supabase) throw new Error("Supabase auth is not configured on this site.");
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(error.message);
+  return { user: normalizeUser(data.user) };
+};
 
-export const loginUser = (username, password) =>
-  authRequest("/api/auth/login", { username, password });
+export const signupUser = async (email, password, role, name = "") => {
+  if (!supabase) throw new Error("Supabase auth is not configured on this site.");
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name: name.trim() || email.split("@")[0], role } },
+  });
+  if (error) throw new Error(error.message);
+  return {
+    user: data.session ? normalizeUser(data.user) : null,
+    requiresEmailConfirmation: !data.session,
+  };
+};
 
-export const logoutUser = (token) => authRequest("/api/auth/logout", {}, token);
+export const logoutUser = async () => {
+  if (!supabase) return;
+  await supabase.auth.signOut();
+};

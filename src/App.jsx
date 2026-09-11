@@ -487,18 +487,6 @@ function App() {
             >
               ♢<i></i>
             </button>
-            <div className="role-select">
-              <span className="online-dot"></span>
-              <select
-                value={role}
-                onChange={(event) => changeRole(event.target.value)}
-                aria-label="Switch role"
-              >
-                <option>Ops / Admin</option>
-                <option>Brand</option>
-                <option>Influencer</option>
-              </select>
-            </div>
           </div>
         </header>
         <input

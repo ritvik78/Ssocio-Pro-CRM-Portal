@@ -471,22 +471,6 @@ function App() {
             <strong>{activeNav}</strong>
           </div>
           <div className="top-actions">
-            <div className="search-box">
-              <span>⌕</span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search workspace"
-                aria-label="Search workspace"
-              />
-            </div>
-            <button
-              className="icon-button notification"
-              aria-label="Notifications"
-              onClick={() => notify("You have 3 new notifications")}
-            >
-              ♢<i></i>
-            </button>
           </div>
         </header>
         <input

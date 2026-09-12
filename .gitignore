@@ -27,3 +27,6 @@ dist-ssr
 .env
 data/*.xlsx
 data/*.csv
+
+# Supabase CLI link/state (contains project refs and pooler URLs)
+supabase/.temp

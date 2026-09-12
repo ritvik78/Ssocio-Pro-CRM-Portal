@@ -1247,14 +1247,26 @@ function Automation({ notify }) {
 
   useEffect(() => {
     let active = true;
-    fetch(`${apiBase}/api/email/status`)
-      .then((response) => response.json())
-      .then((result) => {
-        if (active) setEmailStatus(result.ready ? "ready" : result.configured ? "offline" : "not-configured");
-      })
-      .catch(() => {
-        if (active) setEmailStatus("offline");
-      });
+    const check = async () => {
+      let status = "offline";
+      if (supabase) {
+        try {
+          const { data, error } = await supabase.functions.invoke("send-email", { method: "GET" });
+          if (!error && data && typeof data.ready === "boolean") {
+            status = data.ready ? "ready" : data.error ? "offline" : "not-configured";
+          }
+        } catch { /* fall back to the local API */ }
+      }
+      if (status === "offline" && apiBase) {
+        try {
+          const response = await fetch(`${apiBase}/api/email/status`);
+          const result = await response.json();
+          status = result.ready ? "ready" : result.configured ? "offline" : "not-configured";
+        } catch { /* stay offline */ }
+      }
+      if (active) setEmailStatus(status);
+    };
+    check();
     return () => { active = false; };
   }, []);
 
@@ -1269,21 +1281,36 @@ function Automation({ notify }) {
     }
     setSending(true);
     try {
-      const response = await fetch(
-        `${apiBase}/api/email/send`,
-        {
+      const payload = {
+        recipient: recipient.trim(),
+        subject: subject.trim(),
+        body: body.trim(),
+      };
+      let result = null;
+      let channel = "";
+      if (supabase) {
+        try {
+          const { data, error } = await supabase.functions.invoke("send-email", { body: payload });
+          if (!error && data && data.ok) {
+            result = data;
+            channel = "via Supabase";
+          }
+        } catch { /* fall through to the local API */ }
+      }
+      if (!result && apiBase) {
+        const response = await fetch(`${apiBase}/api/email/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            recipient: recipient.trim(),
-            subject: subject.trim(),
-            body: body.trim(),
-          }),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Email delivery failed");
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.error || "Email delivery failed");
+        result = data;
+        channel = "via API";
+      }
+      if (!result)
+        throw new Error("Email service is unavailable");
       setSentEmails((emails) => [
         {
           recipient: result.recipient,
@@ -1292,7 +1319,7 @@ function Automation({ notify }) {
         },
         ...emails,
       ]);
-      notify(`Email sent to ${result.recipient}`);
+      notify(`Email sent to ${result.recipient} ${channel ? `(${channel})` : ""}`);
       setRecipient("");
     } catch (error) {
       notify(error.message || "Email service is unavailable");

@@ -135,7 +135,7 @@ const campaigns = [
     brand: "Glow Recipe",
     creators: 18,
     submitted: 74,
-    budget: "$8,420",
+    budget: "₹8,420",
     status: "Live",
     tone: "pink",
   },
@@ -144,7 +144,7 @@ const campaigns = [
     brand: "Solis",
     creators: 12,
     submitted: 58,
-    budget: "$4,180",
+    budget: "₹4,180",
     status: "Live",
     tone: "black",
   },
@@ -153,7 +153,7 @@ const campaigns = [
     brand: "Aster",
     creators: 24,
     submitted: 91,
-    budget: "$12,600",
+    budget: "₹12,600",
     status: "Reviewing",
     tone: "yellow",
   },
@@ -651,7 +651,7 @@ const {
 }
 
 function BrandHome({ goTo }) { return <><PageHeader eyebrow="BRAND WORKSPACE" title="Your campaigns, at a glance" description="Track creator submissions, campaign performance, and return on investment." action="View submissions" onAction={() => goTo("Influencer submissions")} /><section className="metric-grid"><Metric label="ACTIVE CAMPAIGNS" value="08" detail="2" color="blue" /><Metric label="SUBMISSIONS RECEIVED" value="42" detail="8" /><Metric label="TOTAL REACH" value="1.8M" detail="14%" color="yellow" /><Metric label="CAMPAIGN ROI" value="3.8x" detail=".6x" color="green" /></section><section className="role-dashboard-grid"><article className="panel role-welcome-panel"><PanelHeading title="Brand action center" description="Keep your creator activations moving" /><button className="role-action" onClick={() => goTo("Campaigns")}>Manage campaigns <span>→</span></button><button className="role-action" onClick={() => goTo("Influencer submissions")}>Review influencer submissions <span>→</span></button><button className="role-action" onClick={() => goTo("Wallet & payouts")}>Open wallet statement <span>→</span></button></article><article className="panel role-welcome-panel"><PanelHeading title="This week's performance" description="Across all live brand campaigns" /><div className="role-stat"><strong>74%</strong><span>submission completion</span></div><div className="progress"><i style={{ width: "74%" }}></i></div><div className="role-stat"><strong>8.4%</strong><span>average engagement rate</span></div><div className="progress"><i style={{ width: "62%" }}></i></div></article></section></> }
-function InfluencerHome({ goTo }) { return <><PageHeader eyebrow="INFLUENCER WORKSPACE" title="Your creator dashboard" description="Follow your creator performance and keep track of your Ssocio earnings." action="View creator profile" onAction={() => goTo("Creators")} /><section className="metric-grid"><Metric label="ACTIVE OFFERS" value="06" detail="2" color="blue" /><Metric label="POSTS SUBMITTED" value="18" detail="4" /><Metric label="SSOCIO SCORE" value="94" detail="7" color="yellow" /><Metric label="WALLET BALANCE" value="$2,480" detail="$420" color="green" /></section><section className="role-dashboard-grid"><article className="panel role-welcome-panel"><PanelHeading title="Creator action center" description="Your available workspace tools" /><button className="role-action" onClick={() => goTo("Creators")}>View creator profile <span>→</span></button><button className="role-action" onClick={() => goTo("Wallet & payouts")}>View cashback balance <span>→</span></button></article><article className="panel role-welcome-panel"><PanelHeading title="Your current tier" description="Based on engagement and consistency" /><div className="tier-display"><strong>ProElite</strong><span>94 Ssocio Score</span></div><div className="progress"><i style={{ width: "94%" }}></i></div><p className="role-note">Keep your posts active and connected to unlock faster cashback reviews.</p></article></section></> }
+function InfluencerHome({ goTo }) { return <><PageHeader eyebrow="INFLUENCER WORKSPACE" title="Your creator dashboard" description="Follow your creator performance and keep track of your Ssocio earnings." action="View creator profile" onAction={() => goTo("Creators")} /><section className="metric-grid"><Metric label="ACTIVE OFFERS" value="06" detail="2" color="blue" /><Metric label="POSTS SUBMITTED" value="18" detail="4" /><Metric label="SSOCIO SCORE" value="94" detail="7" color="yellow" /><Metric label="WALLET BALANCE" value="₹2,480" detail="₹420" color="green" /></section><section className="role-dashboard-grid"><article className="panel role-welcome-panel"><PanelHeading title="Creator action center" description="Your available workspace tools" /><button className="role-action" onClick={() => goTo("Creators")}>View creator profile <span>→</span></button><button className="role-action" onClick={() => goTo("Wallet & payouts")}>View cashback balance <span>→</span></button></article><article className="panel role-welcome-panel"><PanelHeading title="Your current tier" description="Based on engagement and consistency" /><div className="tier-display"><strong>ProElite</strong><span>94 Ssocio Score</span></div><div className="progress"><i style={{ width: "94%" }}></i></div><p className="role-note">Keep your posts active and connected to unlock faster cashback reviews.</p></article></section></> }
 
 function PageHeader({ eyebrow, title, description, action, onAction }) {
   return (
@@ -753,8 +753,8 @@ function Dashboard({
         />
         <Metric
           label="WALLET BALANCE"
-          value="$24,860"
-          detail="$4,280"
+          value="₹24,860"
+          detail="₹4,280"
           color="green"
         />
       </section>
@@ -1031,10 +1031,10 @@ function Activity({ notify }) {
           </div>
         </div>
         <div className="activity-item">
-          <span className="activity-icon yellow-bg">$</span>
+          <span className="activity-icon yellow-bg">₹</span>
           <div>
             <strong>Payout processed</strong>
-            <p>$1,240 sent to creator wallets</p>
+            <p>₹1,240 sent to creator wallets</p>
             <small>42 minutes ago</small>
           </div>
         </div>
@@ -1260,10 +1260,10 @@ function Campaigns({ notify }) {
   const [items, setItems] = useState(campaigns)
   const [editing, setEditing] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [draft, setDraft] = useState({ name: '', brand: '', budget: '$0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow', image: '' })
+  const [draft, setDraft] = useState({ name: '', brand: '', budget: '₹0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow', image: '' })
   const update = (name, field, value) => setItems((current) => current.map((item) => item.name === name ? { ...item, [field]: value } : item))
   const handleImage = (event) => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { notify('Choose an image file'); return }; const reader = new FileReader(); reader.onload = () => setDraft((current) => ({ ...current, image: String(reader.result) })); reader.readAsDataURL(file) }
-  const create = () => { if (!draft.name.trim() || !draft.brand.trim()) { notify('Campaign name and brand are required'); return }; setItems((current) => [{ ...draft, creators: Number(draft.creators) || 0, submitted: Number(draft.submitted) || 0 }, ...current]); setDraft({ name: '', brand: '', budget: '$0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow', image: '' }); setShowCreate(false); notify('Campaign created') }
+  const create = () => { if (!draft.name.trim() || !draft.brand.trim()) { notify('Campaign name and brand are required'); return }; setItems((current) => [{ ...draft, creators: Number(draft.creators) || 0, submitted: Number(draft.submitted) || 0 }, ...current]); setDraft({ name: '', brand: '', budget: '₹0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow', image: '' }); setShowCreate(false); notify('Campaign created') }
   return (
     <>
       <PageHeader
@@ -1372,11 +1372,11 @@ function Wallet({ notify }) {
   const [showPayout, setShowPayout] = useState(false)
   const [payout, setPayout] = useState({ recipient: '', amount: '', note: '' })
   const [transactions, setTransactions] = useState([
-    { icon: '↓', tone: 'green', title: 'Cashback credit · Amara Okafor', detail: 'Glow Recipe launch · Today, 10:42', amount: '+$420.00', status: 'Processed' },
-    { icon: '↗', tone: 'yellow', title: 'Settlement · Glow Recipe', detail: 'Brand wallet · Yesterday, 16:08', amount: '-$1,240.00', status: 'Pending' },
-    { icon: '↓', tone: 'blue', title: 'Cashback credit · Sofia Patel', detail: 'Aster skincare · Yesterday, 09:21', amount: '+$680.00', status: 'Processed' },
+    { icon: '↓', tone: 'green', title: 'Cashback credit · Amara Okafor', detail: 'Glow Recipe launch · Today, 10:42', amount: '+₹420.00', status: 'Processed' },
+    { icon: '↗', tone: 'yellow', title: 'Settlement · Glow Recipe', detail: 'Brand wallet · Yesterday, 16:08', amount: '-₹1,240.00', status: 'Pending' },
+    { icon: '↓', tone: 'blue', title: 'Cashback credit · Sofia Patel', detail: 'Aster skincare · Yesterday, 09:21', amount: '+₹680.00', status: 'Processed' },
   ])
-  const recordPayout = () => { if (!payout.recipient.trim() || !payout.amount.trim()) { notify('Recipient and amount are required'); return }; setTransactions((current) => [{ icon: '↗', tone: 'yellow', title: `Payout · ${payout.recipient}`, detail: `${payout.note || 'Manual payout'} · Just now`, amount: `-$${payout.amount}`, status: 'Pending' }, ...current]); setPayout({ recipient: '', amount: '', note: '' }); setShowPayout(false); notify('Payout recorded') }
+  const recordPayout = () => { if (!payout.recipient.trim() || !payout.amount.trim()) { notify('Recipient and amount are required'); return }; setTransactions((current) => [{ icon: '↗', tone: 'yellow', title: `Payout · ${payout.recipient}`, detail: `${payout.note || 'Manual payout'} · Just now`, amount: `-₹${payout.amount}`, status: 'Pending' }, ...current]); setPayout({ recipient: '', amount: '', note: '' }); setShowPayout(false); notify('Payout recorded') }
   return (
     <>
       <PageHeader
@@ -1390,23 +1390,23 @@ function Wallet({ notify }) {
       <section className="metric-grid">
         <Metric
           label="AVAILABLE BALANCE"
-          value="$24,860"
-          detail="$4,280"
+          value="₹24,860"
+          detail="₹4,280"
           color="green"
         />
         <Metric
           label="PENDING SETTLEMENTS"
-          value="$4,280"
+          value="₹4,280"
           detail="12%"
           color="yellow"
         />
         <Metric
           label="PAID THIS MONTH"
-          value="$18,420"
+          value="₹18,420"
           detail="24%"
           color="blue"
         />
-        <Metric label="PLATFORM COMMISSION" value="$6,920" detail="9%" />
+        <Metric label="PLATFORM COMMISSION" value="₹6,920" detail="9%" />
       </section>
       <article className="panel full-panel">
         <PanelHeading
@@ -1757,7 +1757,7 @@ function Settings({ notify }) {
             <Status value="Connected" />
           </div>
           <div className="integration-row">
-            <span className="integration-badge yellow-bg">$</span>
+            <span className="integration-badge yellow-bg">₹</span>
             <div>
               <strong>Payout provider</strong>
               <small>Settlement account required</small>

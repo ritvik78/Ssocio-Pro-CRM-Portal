@@ -89,6 +89,20 @@ const initialSubmissions = [
   },
 ];
 const cloneSubmissions = (items) => items.map((item) => ({ ...item }));
+const submissionKey = (item) =>
+  [String(item.creator || ""), String(item.handle || ""), String(item.campaign || "")]
+    .map((value) => value.trim().toLowerCase())
+    .join("|");
+const findDuplicateKeys = (rows) => {
+  const counts = new Map();
+  rows.forEach((item) => {
+    const key = submissionKey(item);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return new Set(
+    [...counts].filter(([, count]) => count > 1).map(([key]) => key),
+  );
+};
 const offlineStorageKey = (audience) => `ssocio-pro-${audience}-submissions`;
 const readOfflineRows = (audience) => {
   try {
@@ -340,6 +354,20 @@ function App() {
     );
     notify(`${creator} removed from the imported queue`);
   };
+  const removeDuplicates = (audience) => {
+    setForAudience(audience, (items) => {
+      const seen = new Set();
+      const next = [];
+      items.forEach((item) => {
+        const key = submissionKey(item);
+        if (seen.has(key)) return;
+        seen.add(key);
+        next.push(item);
+      });
+      return next;
+    });
+    notify("Duplicate submissions removed");
+  };
   const editSubmission = (audience, creator, field, value) =>
     setForAudience(audience, (items) =>
       items.map((item) =>
@@ -352,6 +380,13 @@ function App() {
     const campaign = draft.campaign.trim();
     if (!creator || !handle || !campaign) {
       notify("Creator, handle, and campaign are required");
+      return false;
+    }
+    const current =
+      audience === "brand" ? brandSubmissions : influencerSubmissions;
+    const key = submissionKey({ creator, handle, campaign });
+    if (current.some((item) => submissionKey(item) === key)) {
+      notify(`${creator} already exists in ${audience} submissions`);
       return false;
     }
     setForAudience(audience, (items) => [
@@ -403,6 +438,8 @@ function App() {
   };
 
   const roleHome = role === "Brand" ? <BrandHome goTo={goTo} /> : role === "Influencer" ? <InfluencerHome goTo={goTo} /> : <Dashboard username={currentUser.username} goTo={goTo} notify={notify} submissions={brandSubmissions} updateSubmission={(creator, status) => updateSubmission("brand", creator, status)} editSubmission={(creator, field, value) => editSubmission("brand", creator, field, value)} removeSubmission={(creator) => removeSubmission("brand", creator)} />;
+  const brandDuplicateKeys = findDuplicateKeys(brandSubmissions);
+  const influencerDuplicateKeys = findDuplicateKeys(influencerSubmissions);
 
   return (
     <div className="app-shell">
@@ -493,6 +530,8 @@ function App() {
               removeSubmission={(creator) => removeSubmission("brand", creator)}
               onAdd={(draft) => addSubmission("brand", draft)}
               onImport={() => fileInput.current?.click()}
+              duplicateKeys={brandDuplicateKeys}
+              onRemoveDuplicates={() => removeDuplicates("brand")}
             />
           ) : activeNav === "Influencer submissions" ? (
             <Submissions
@@ -510,6 +549,8 @@ function App() {
               }
               onAdd={(draft) => addSubmission("influencer", draft)}
               onImport={() => fileInput.current?.click()}
+              duplicateKeys={influencerDuplicateKeys}
+              onRemoveDuplicates={() => removeDuplicates("influencer")}
             />
           ) : activeNav === "Campaigns" ? (
             <Campaigns notify={notify} />
@@ -670,6 +711,7 @@ function SubmissionTable({
   updateSubmission,
   editSubmission,
   removeSubmission,
+  flaggedKeys = new Set(),
 }) {
   return (
     <div className="table-wrap">
@@ -722,6 +764,9 @@ function SubmissionTable({
                         <strong>{item.creator}</strong>
                         <small>{item.handle}</small>
                       </>
+                    )}
+                    {flaggedKeys.has(submissionKey(item)) && (
+                      <span className="duplicate-badge">Duplicate</span>
                     )}
                   </div>
                 </div>
@@ -977,6 +1022,8 @@ function Submissions({
   removeSubmission,
   onAdd,
   onImport,
+  duplicateKeys,
+  onRemoveDuplicates,
 }) {
   const [showCreate, setShowCreate] = useState(false);
   const emptyDraft = {
@@ -995,6 +1042,9 @@ function Submissions({
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
+  const duplicateCount = submissions.filter((item) =>
+    duplicateKeys.has(submissionKey(item)),
+  ).length;
   const audienceName =
     audience === "brand" ? "Brand submissions" : "Influencer submissions";
   const description =
@@ -1010,6 +1060,27 @@ function Submissions({
         action="Add submission"
         onAction={() => setShowCreate(true)}
       />
+      {duplicateCount > 0 && (
+        <section className="duplicate-warning">
+          <span className="duplicate-warning-icon">⚠</span>
+          <div className="duplicate-warning-text">
+            <strong>
+              {duplicateCount} flagged duplicate
+              {duplicateCount === 1 ? "" : "s"}
+            </strong>
+            <small>
+              Repeating entries detected in this queue. Delete them all at
+              once to remove every duplicate row.
+            </small>
+          </div>
+          <button
+            className="duplicate-delete-button"
+            onClick={onRemoveDuplicates}
+          >
+            Delete duplicates
+          </button>
+        </section>
+      )}
       {showCreate && (
         <section className="panel inline-create-form submission-create-form">
           <h2>New submission</h2>
@@ -1051,7 +1122,12 @@ function Submissions({
           detail="18%"
           color="blue"
         />
-        <Metric label="FLAGGED POSTS" value="03" detail="1" color="yellow" />
+        <Metric
+          label="FLAGGED POSTS"
+          value={String(duplicateCount).padStart(2, "0")}
+          detail={duplicateCount === 0 ? "none" : "duplicates"}
+          color="yellow"
+        />
       </section>
       <article className="panel full-panel">
         <PanelHeading
@@ -1067,6 +1143,7 @@ function Submissions({
           updateSubmission={updateSubmission}
           editSubmission={editSubmission}
           removeSubmission={removeSubmission}
+          flaggedKeys={duplicateKeys}
         />
       </article>
     </>

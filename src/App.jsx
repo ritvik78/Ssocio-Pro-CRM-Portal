@@ -666,6 +666,7 @@ function SubmissionTable({
   submissions,
   onAction,
   review = false,
+  showEngagement = true,
   updateSubmission,
   editSubmission,
   removeSubmission,
@@ -678,7 +679,7 @@ function SubmissionTable({
             <th>CREATOR</th>
             <th>CAMPAIGN</th>
             <th>SUBMITTED</th>
-            <th>ENGAGEMENT</th>
+            {showEngagement && <th>ENGAGEMENT</th>}
             <th>REMARKS</th>
             <th>STATUS</th>
             <th>ACTION</th>
@@ -743,39 +744,41 @@ function SubmissionTable({
                 )}
               </td>
               <td className="muted">{item.submitted}</td>
-              <td>
-                {review ? (
-                  <div className="edit-engagement">
-                    <input
-                      className="inline-input"
-                      value={item.comments}
-                      onChange={(event) =>
-                        editSubmission(
-                          item.creator,
-                          "comments",
-                          event.target.value,
-                        )
-                      }
-                    />
-                    <input
-                      className="inline-input"
-                      value={item.likes}
-                      onChange={(event) =>
-                        editSubmission(
-                          item.creator,
-                          "likes",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </div>
-                ) : (
-                  <div className="engagement">
-                    <span>{item.comments} comments</span>
-                    <span>{item.likes} likes</span>
-                  </div>
-                )}
-              </td>
+              {showEngagement && (
+                <td>
+                  {review ? (
+                    <div className="edit-engagement">
+                      <input
+                        className="inline-input"
+                        value={item.comments}
+                        onChange={(event) =>
+                          editSubmission(
+                            item.creator,
+                            "comments",
+                            event.target.value,
+                          )
+                        }
+                      />
+                      <input
+                        className="inline-input"
+                        value={item.likes}
+                        onChange={(event) =>
+                          editSubmission(
+                            item.creator,
+                            "likes",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <div className="engagement">
+                      <span>{item.comments} comments</span>
+                      <span>{item.likes} likes</span>
+                    </div>
+                  )}
+                </td>
+              )}
               <td>
                 {review ? (
                   <input
@@ -1015,8 +1018,10 @@ function Submissions({
             <input placeholder="Handle *" value={draft.handle} onChange={(event) => setDraft({ ...draft, handle: event.target.value })} />
             <input placeholder="Campaign *" value={draft.campaign} onChange={(event) => setDraft({ ...draft, campaign: event.target.value })} />
             <input placeholder="Submitted" value={draft.submitted} onChange={(event) => setDraft({ ...draft, submitted: event.target.value })} />
-            <input placeholder="Comments" value={draft.comments} onChange={(event) => setDraft({ ...draft, comments: event.target.value })} />
-            <input placeholder="Likes" value={draft.likes} onChange={(event) => setDraft({ ...draft, likes: event.target.value })} />
+            {audience !== "brand" && <>
+              <input placeholder="Comments" value={draft.comments} onChange={(event) => setDraft({ ...draft, comments: event.target.value })} />
+              <input placeholder="Likes" value={draft.likes} onChange={(event) => setDraft({ ...draft, likes: event.target.value })} />
+            </>}
             <input placeholder="Remarks" value={draft.remarks} onChange={(event) => setDraft({ ...draft, remarks: event.target.value })} />
             <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
               <option>Needs review</option>
@@ -1058,6 +1063,7 @@ function Submissions({
         <SubmissionTable
           submissions={filtered}
           review
+          showEngagement={audience !== "brand"}
           updateSubmission={updateSubmission}
           editSubmission={editSubmission}
           removeSubmission={removeSubmission}

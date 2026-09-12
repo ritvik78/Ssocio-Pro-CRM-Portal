@@ -43,17 +43,9 @@ Use `npx prisma migrate dev` only after the database password is configured and 
 
 The backend exposes `/api/prisma/status` for a non-secret connection check. The Prisma client is created lazily and is never bundled into the browser build.
 
-## Accounts & sign-in
+## Dashboard access
 
-The portal opens on a sign-in page on every visit. New visitors click **New here? Create an account** to register with a name, email and password; existing users use **Already a user? Log in** to sign back in. After signing in, the dashboard greets `Welcome <name>` and the sidebar shows the signed-in user and role.
-
-Accounts are stored in **Supabase Auth** (`auth.users`) — the same project that holds submissions — so sign-in works on a static GitHub Pages site with no backend needed. `src/lib/auth.js` uses the browser Supabase client (`signInWithPassword` / `signUp` / `signOut`), and the signed-in user's name and role are read from the account's user metadata.
-
-New sign-ups may require confirming the email first (depending on the project's `Enable email confirmations` setting). When confirmation is required, the app shows a notice and switches to the log-in form; the password sign-in only works once the email has been confirmed in Supabase.
-
-A fixed admin account is created by `supabase-schema.sql` for testing: **`admin@gmail.com`** with password **`admin@123`** (role `Ops / Admin`). The SQL mirrors a GoTrue-created row exactly — bcrypt cost 10, `user_metadata` containing `sub`/`email`/`email_verified`/`phone_verified`, a matching `auth.identities` row, and all token columns as empty strings (`''`) rather than `NULL`. Missing any of these makes log-in fail with `Database error querying schema`.
-
-The old custom backend endpoints `/api/auth/signup|login|session|logout` and the `public.users` table are retained in `server.js` for compatibility but are no longer called by the frontend. Set `VITE_API_URL` only when the API is hosted separately (for example `https://your-email-api.example.com`); otherwise the app ignores it for authentication.
+There is no login or sign-up in this portal. When someone opens the site, the dashboard loads directly with the fixed workspace user **Admin** (role `Ops / Admin`). The old sign-in/sign-up flow (`src/lib/auth.js`, the Supabase Auth admin account, and the `/api/auth/*` backend endpoints) was removed, so no authentication is required to view or use the portal. Set `VITE_API_URL` only when the API is hosted separately (for example `https://your-email-api.example.com`); otherwise the app calls the same origin.
 
 ## Supabase MCP
 

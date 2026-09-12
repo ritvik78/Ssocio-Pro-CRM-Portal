@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { loadSupabaseSubmissions, saveSupabaseSubmissions, supabase } from "./lib/supabase";
-import { loginUser, logoutUser, signupUser } from "./lib/auth";
 import "./App.css";
+
+const currentUser = { username: "Admin", role: "Ops / Admin" };
 
 const navItems = [
   ["Overview", "⌂"],
@@ -242,9 +243,8 @@ const roleTitle = (role) =>
       : "Creator";
 
 function App() {
-  const [user, setUser] = useState(null);
   const [activeNav, setActiveNav] = useState("Overview");
-  const [role, setRole] = useState("Ops / Admin");
+  const role = currentUser.role;
   const [toast, setToast] = useState("");
   const [brandSubmissions, setBrandSubmissions] = useState(() => readOfflineRows("brand") || cloneSubmissions(initialSubmissions));
   const [influencerSubmissions, setInfluencerSubmissions] = useState(() => readOfflineRows("influencer") || cloneSubmissions(initialSubmissions));
@@ -256,11 +256,6 @@ function App() {
   };
   const goTo = (page) => {
     if (accessByRole[role].includes(page)) setActiveNav(page);
-    setSearch("");
-  };
-  const changeRole = (nextRole) => {
-    setRole(nextRole);
-    setActiveNav("Overview");
     setSearch("");
   };
   const persistAudience = async (audience, rows) => {
@@ -407,26 +402,7 @@ function App() {
     event.target.value = "";
   };
 
-  const onAuthenticated = (nextUser) => {
-    setUser(nextUser);
-    setRole(nextUser.role);
-    setActiveNav("Overview");
-    setSearch("");
-  };
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch {
-      // Best-effort sign out; local state is cleared regardless.
-    }
-    setUser(null);
-    setActiveNav("Overview");
-    setSearch("");
-  };
-
-  if (!user) return <AuthPage onAuthenticated={onAuthenticated} />;
-
-  const roleHome = role === "Brand" ? <BrandHome goTo={goTo} /> : role === "Influencer" ? <InfluencerHome goTo={goTo} /> : <Dashboard username={user.username} goTo={goTo} notify={notify} submissions={brandSubmissions} updateSubmission={(creator, status) => updateSubmission("brand", creator, status)} editSubmission={(creator, field, value) => editSubmission("brand", creator, field, value)} removeSubmission={(creator) => removeSubmission("brand", creator)} />;
+  const roleHome = role === "Brand" ? <BrandHome goTo={goTo} /> : role === "Influencer" ? <InfluencerHome goTo={goTo} /> : <Dashboard username={currentUser.username} goTo={goTo} notify={notify} submissions={brandSubmissions} updateSubmission={(creator, status) => updateSubmission("brand", creator, status)} editSubmission={(creator, field, value) => editSubmission("brand", creator, field, value)} removeSubmission={(creator) => removeSubmission("brand", creator)} />;
 
   return (
     <div className="app-shell">
@@ -475,18 +451,11 @@ function App() {
             <span>Settings</span>
           </button>}
           <div className="profile">
-            <div className="avatar avatar-purple">{userInitials(user.username)}</div>
+            <div className="avatar avatar-purple">{userInitials(currentUser.username)}</div>
             <div>
-              <strong>{user.username}</strong>
+              <strong>{currentUser.username}</strong>
               <small>{roleTitle(role)}</small>
             </div>
-            <button
-              className="more"
-              onClick={handleLogout}
-              aria-label="Log out"
-            >
-              Log out
-            </button>
           </div>
         </div>
       </aside>
@@ -557,126 +526,6 @@ function App() {
       </main>
       {toast && <div className="toast">{toast}</div>}
     </div>
-  );
-}
-
-function AuthPage({ onAuthenticated }) {
-  const [mode, setMode] = useState("signin");
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("Ops / Admin");
-  const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
-  const [busy, setBusy] = useState(false);
-  const isSignUp = mode === "signup";
-  const switchMode = (nextMode) => {
-    setMode(nextMode);
-    setError("");
-    setInfo("");
-  };
-  const submit = async (event) => {
-    event.preventDefault();
-    setError("");
-    setInfo("");
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setError("Enter a valid email address.");
-      return;
-    }
-    if (!password) {
-      setError("Enter your password.");
-      return;
-    }
-    if (isSignUp && password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const result = isSignUp
-        ? await signupUser(cleanEmail, password, role, name)
-        : await loginUser(cleanEmail, password);
-      if (isSignUp && result.requiresEmailConfirmation) {
-        setInfo("Account created! Check your email to confirm, then sign in.");
-        setMode("signin");
-        setPassword("");
-        return;
-      }
-      onAuthenticated(result.user);
-    } catch (caught) {
-      setError(caught.message || "Could not connect to the authentication service.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <main className="login-page">
-      <div className="login-brand">
-        <img src={logoPath} alt="Ssocio Pro" />
-      </div>
-      <section className="login-card">
-        <p className="eyebrow">SSOCIO PRO PORTAL</p>
-        <h1>{isSignUp ? "Create your account" : "Welcome back"}</h1>
-        <p className="login-copy">
-          {isSignUp
-            ? "Sign up to manage creator campaigns, submissions, and payouts."
-            : "Sign in with your Supabase account."}
-        </p>
-        <form onSubmit={submit}>
-          {isSignUp && (
-            <label>
-              Full name
-              <input
-                type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Your name"
-                autoComplete="name"
-              />
-            </label>
-          )}
-          <label>
-            Email address
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@company.com"
-              autoComplete="email"
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder={isSignUp ? "At least 6 characters" : "Enter your password"}
-              autoComplete={isSignUp ? "new-password" : "current-password"}
-            />
-          </label>
-          {isSignUp && (
-            <label>
-              Sign up as
-              <select value={role} onChange={(event) => setRole(event.target.value)}>
-                <option>Ops / Admin</option>
-                <option>Brand</option>
-                <option>Influencer</option>
-              </select>
-            </label>
-          )}
-          {error && <p className="login-error">{error}</p>}
-          {info && <p className="login-info">{info}</p>}
-          <button className="primary-button login-button" type="submit" disabled={busy}>
-            {isSignUp ? "Create account" : "Sign in"} <span>→</span>
-          </button>
-        </form>
-        <button className="login-switch" onClick={() => switchMode(isSignUp ? "signin" : "signup")}>
-          {isSignUp ? "Already a user? Log in" : "New here? Create an account"}
-        </button>
-      </section>
-    </main>
   );
 }
 

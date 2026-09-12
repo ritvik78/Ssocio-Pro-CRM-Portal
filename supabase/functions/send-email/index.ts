@@ -10,13 +10,25 @@ const transport = nodemailer.createTransport({
   },
 });
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "content-type, apikey, authorization",
+  "Access-Control-Max-Age": "86400",
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    headers: {
+      "Content-Type": "application/json",
+      ...corsHeaders,
+    },
   });
 
 const handler = async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+
   if (req.method === "GET") {
     try {
       await transport.verify();
@@ -26,7 +38,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
   }
 
-  if (req.method === "OPTIONS") return new Response(null, { status: 204 });
   if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
 
   let payload: { recipient?: string; subject?: string; body?: string } = {};

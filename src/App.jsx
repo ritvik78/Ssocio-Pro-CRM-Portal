@@ -198,9 +198,20 @@ const creators = [
 ];
 
 const readCell = (row, names) => {
-  const key = Object.keys(row).find((item) =>
-    names.includes(item.toLowerCase().replace(/[^a-z0-9]/g, "")),
-  );
+  const normalized = names
+    .map((name) => name.toLowerCase().replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean);
+  const key = Object.keys(row).find((originalKey) => {
+    const normalizedKey = originalKey
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    return normalized.some(
+      (name) =>
+        normalizedKey === name ||
+        normalizedKey.includes(name) ||
+        name.includes(normalizedKey),
+    );
+  });
   return key ? String(row[key] ?? "") : "";
 };
 
@@ -231,10 +242,19 @@ const normalizeSubmission = (row, index) => {
   ]);
   const contact = readCell(row, [
     "contact",
+    "contactnumber",
+    "contactinfo",
     "email",
+    "emailaddress",
     "mobile",
+    "mobileno",
+    "phonenumber",
+    "phoneno",
     "phone",
+    "cell",
+    "cellphone",
     "whatsapp",
+    "number",
   ]);
   return {
     creator,

@@ -88,20 +88,30 @@ const initialSubmissions = [
     tone: "green",
   },
 ];
-const cloneSubmissions = (items) => items.map((item) => ({ ...item }));
+const cloneSubmissions = (items) =>
+  items.map((item) => ({ ...item, id: createId("sub") }));
+const createId = (prefix) =>
+  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const ensureId = (item) => (item.id ? item : { ...item, id: createId("sub") });
 const submissionKey = (item) =>
   [String(item.creator || ""), String(item.handle || ""), String(item.campaign || "")]
     .map((value) => value.trim().toLowerCase())
     .join("|");
-const findDuplicateKeys = (rows) => {
+const findDuplicateSummary = (rows) => {
   const counts = new Map();
   rows.forEach((item) => {
     const key = submissionKey(item);
     counts.set(key, (counts.get(key) || 0) + 1);
   });
-  return new Set(
-    [...counts].filter(([, count]) => count > 1).map(([key]) => key),
-  );
+  let extraCount = 0;
+  const keys = new Set();
+  counts.forEach((count, key) => {
+    if (count > 1) {
+      keys.add(key);
+      extraCount += count - 1;
+    }
+  });
+  return { keys, extraCount };
 };
 const offlineStorageKey = (audience) => `ssocio-pro-${audience}-submissions`;
 const readOfflineRows = (audience) => {
@@ -230,6 +240,7 @@ const normalizeSubmission = (row, index) => {
     likes,
     remarks,
     status,
+    id: createId("sub"),
     initials: creator
       .split(" ")
       .map((part) => part[0])
@@ -303,7 +314,7 @@ function App() {
       if (supabase) {
         try {
           const rows = await loadSupabaseSubmissions(audience);
-          if (rows.length) setter(rows);
+          if (rows.length) setter(rows.map(ensureId));
           else {
             const seed = cloneSubmissions(initialSubmissions);
             setter(seed);
@@ -316,8 +327,9 @@ function App() {
       }
       const offlineRows = readOfflineRows(audience);
       if (offlineRows !== null) {
-        setter(offlineRows);
-        void persistAudience(audience, offlineRows);
+        const rows = offlineRows.map(ensureId);
+        setter(rows);
+        void persistAudience(audience, rows);
         return;
       }
       if (!apiBase) return;
@@ -325,7 +337,7 @@ function App() {
         const response = await fetch(`${apiBase}/api/storage/submissions/${audience}`);
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Storage API unavailable");
-        if (result.rows.length) setter(result.rows);
+        if (result.rows.length) setter(result.rows.map(ensureId));
         else {
           const seed = cloneSubmissions(initialSubmissions);
           setter(seed);
@@ -340,38 +352,48 @@ function App() {
     void loadAudience("brand", setBrandSubmissions);
     void loadAudience("influencer", setInfluencerSubmissions);
   }, []);
-  const updateSubmission = (audience, creator, status) => {
+  const updateSubmission = (audience, id, status) => {
     setForAudience(audience, (items) =>
       items.map((item) =>
-        item.creator === creator ? { ...item, status } : item,
+        item.id === id ? { ...item, status } : item,
       ),
     );
     notify(`${creator} marked ${status.toLowerCase()}`);
   };
-  const removeSubmission = (audience, creator) => {
+  const removeSubmission = (audience, id) => {
     setForAudience(audience, (items) =>
-      items.filter((item) => item.creator !== creator),
+      items.filter((item) => item.id !== id),
     );
-    notify(`${creator} removed from the imported queue`);
+    const removedItem = (audience === "brand" ? brandSubmissions : influencerSubmissions)
+      .find((item) => item.id === id);
+    notify(`${removedItem ? removedItem.creator : "Submission"} removed from the imported queue`);
   };
   const removeDuplicates = (audience) => {
-    setForAudience(audience, (items) => {
-      const seen = new Set();
-      const next = [];
-      items.forEach((item) => {
-        const key = submissionKey(item);
-        if (seen.has(key)) return;
-        seen.add(key);
-        next.push(item);
-      });
-      return next;
+    const current =
+      audience === "brand" ? brandSubmissions : influencerSubmissions;
+    let removed = 0;
+    const seen = new Set();
+    const next = [];
+    current.forEach((item) => {
+      const key = submissionKey(item);
+      if (seen.has(key)) {
+        removed += 1;
+        return;
+      }
+      seen.add(key);
+      next.push(item);
     });
-    notify("Duplicate submissions removed");
+    setForAudience(audience, () => next);
+    notify(
+      removed === 0
+        ? "No duplicate submissions found"
+        : `${removed} duplicate submission${removed === 1 ? "" : "s"} removed`,
+    );
   };
-  const editSubmission = (audience, creator, field, value) =>
+  const editSubmission = (audience, id, field, value) =>
     setForAudience(audience, (items) =>
       items.map((item) =>
-        item.creator === creator ? { ...item, [field]: value } : item,
+        item.id === id ? { ...item, [field]: value } : item,
       ),
     );
   const addSubmission = (audience, draft) => {
@@ -392,6 +414,7 @@ function App() {
     setForAudience(audience, (items) => [
       {
         ...draft,
+        id: createId("sub"),
         creator,
         handle,
         campaign,
@@ -424,12 +447,28 @@ function App() {
       if (!rows.length) throw new Error("The first sheet is empty");
       const audience =
         activeNav === "Brand submissions" ? "brand" : "influencer";
-      setForAudience(audience, (current) => [
-        ...rows.map(normalizeSubmission),
-        ...current,
-      ]);
+      const current =
+        audience === "brand" ? brandSubmissions : influencerSubmissions;
+      const seen = new Set(current.map(submissionKey));
+      let skipped = 0;
+      const added = [];
+      rows.forEach((raw, index) => {
+        const row = normalizeSubmission(raw, index);
+        const key = submissionKey(row);
+        if (seen.has(key)) {
+          skipped += 1;
+          return;
+        }
+        seen.add(key);
+        added.push(row);
+      });
+      if (added.length) {
+        setForAudience(audience, () => [...added, ...current]);
+      }
       notify(
-        `${rows.length} submission${rows.length === 1 ? "" : "s"} imported from Excel`,
+        skipped === 0
+          ? `${rows.length} submission${rows.length === 1 ? "" : "s"} imported from Excel`
+          : `${added.length} imported, ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped`,
       );
     } catch (error) {
       notify(error.message || "Excel file could not be read");
@@ -437,9 +476,15 @@ function App() {
     event.target.value = "";
   };
 
-  const roleHome = role === "Brand" ? <BrandHome goTo={goTo} /> : role === "Influencer" ? <InfluencerHome goTo={goTo} /> : <Dashboard username={currentUser.username} goTo={goTo} notify={notify} submissions={brandSubmissions} updateSubmission={(creator, status) => updateSubmission("brand", creator, status)} editSubmission={(creator, field, value) => editSubmission("brand", creator, field, value)} removeSubmission={(creator) => removeSubmission("brand", creator)} />;
-  const brandDuplicateKeys = findDuplicateKeys(brandSubmissions);
-  const influencerDuplicateKeys = findDuplicateKeys(influencerSubmissions);
+  const roleHome = role === "Brand" ? <BrandHome goTo={goTo} /> : role === "Influencer" ? <InfluencerHome goTo={goTo} /> : <Dashboard username={currentUser.username} goTo={goTo} notify={notify} submissions={brandSubmissions} updateSubmission={(id, status) => updateSubmission("brand", id, status)} editSubmission={(id, field, value) => editSubmission("brand", id, field, value)} removeSubmission={(id) => removeSubmission("brand", id)} />;
+const {
+      keys: brandDuplicateKeys,
+      extraCount: brandDuplicateCount,
+    } = findDuplicateSummary(brandSubmissions);
+    const {
+      keys: influencerDuplicateKeys,
+      extraCount: influencerDuplicateCount,
+    } = findDuplicateSummary(influencerSubmissions);
 
   return (
     <div className="app-shell">
@@ -521,16 +566,17 @@ function App() {
               audience="brand"
               submissions={brandSubmissions}
               search={search}
-              updateSubmission={(creator, status) =>
-                updateSubmission("brand", creator, status)
+              updateSubmission={(id, status) =>
+                updateSubmission("brand", id, status)
               }
-              editSubmission={(creator, field, value) =>
-                editSubmission("brand", creator, field, value)
+              editSubmission={(id, field, value) =>
+                editSubmission("brand", id, field, value)
               }
-              removeSubmission={(creator) => removeSubmission("brand", creator)}
+              removeSubmission={(id) => removeSubmission("brand", id)}
               onAdd={(draft) => addSubmission("brand", draft)}
               onImport={() => fileInput.current?.click()}
               duplicateKeys={brandDuplicateKeys}
+              duplicateCount={brandDuplicateCount}
               onRemoveDuplicates={() => removeDuplicates("brand")}
             />
           ) : activeNav === "Influencer submissions" ? (
@@ -538,18 +584,19 @@ function App() {
               audience="influencer"
               submissions={influencerSubmissions}
               search={search}
-              updateSubmission={(creator, status) =>
-                updateSubmission("influencer", creator, status)
+              updateSubmission={(id, status) =>
+                updateSubmission("influencer", id, status)
               }
-              editSubmission={(creator, field, value) =>
-                editSubmission("influencer", creator, field, value)
+              editSubmission={(id, field, value) =>
+                editSubmission("influencer", id, field, value)
               }
-              removeSubmission={(creator) =>
-                removeSubmission("influencer", creator)
+              removeSubmission={(id) =>
+                removeSubmission("influencer", id)
               }
               onAdd={(draft) => addSubmission("influencer", draft)}
               onImport={() => fileInput.current?.click()}
               duplicateKeys={influencerDuplicateKeys}
+              duplicateCount={influencerDuplicateCount}
               onRemoveDuplicates={() => removeDuplicates("influencer")}
             />
           ) : activeNav === "Campaigns" ? (
@@ -729,7 +776,7 @@ function SubmissionTable({
         </thead>
         <tbody>
           {submissions.map((item) => (
-            <tr key={`${item.creator}-${item.handle}`}>
+            <tr key={item.id}>
               <td>
                 <div className="creator-cell">
                   <Avatar item={item} />
@@ -741,7 +788,7 @@ function SubmissionTable({
                           value={item.creator}
                           onChange={(event) =>
                             editSubmission(
-                              item.creator,
+                              item.id,
                               "creator",
                               event.target.value,
                             )
@@ -752,7 +799,7 @@ function SubmissionTable({
                           value={item.handle}
                           onChange={(event) =>
                             editSubmission(
-                              item.creator,
+                              item.id,
                               "handle",
                               event.target.value,
                             )
@@ -778,7 +825,7 @@ function SubmissionTable({
                     value={item.campaign}
                     onChange={(event) =>
                       editSubmission(
-                        item.creator,
+                        item.id,
                         "campaign",
                         event.target.value,
                       )
@@ -798,7 +845,7 @@ function SubmissionTable({
                         value={item.comments}
                         onChange={(event) =>
                           editSubmission(
-                            item.creator,
+                            item.id,
                             "comments",
                             event.target.value,
                           )
@@ -809,7 +856,7 @@ function SubmissionTable({
                         value={item.likes}
                         onChange={(event) =>
                           editSubmission(
-                            item.creator,
+                            item.id,
                             "likes",
                             event.target.value,
                           )
@@ -831,7 +878,7 @@ function SubmissionTable({
                     value={item.remarks || ""}
                     onChange={(event) =>
                       editSubmission(
-                        item.creator,
+                        item.id,
                         "remarks",
                         event.target.value,
                       )
@@ -848,7 +895,7 @@ function SubmissionTable({
                     className="inline-select"
                     value={item.status}
                     onChange={(event) =>
-                      editSubmission(item.creator, "status", event.target.value)
+                      editSubmission(item.id, "status", event.target.value)
                     }
                   >
                     <option>Needs review</option>
@@ -865,20 +912,20 @@ function SubmissionTable({
                   <div className="row-actions">
                     <button
                       className="approve-button"
-                      onClick={() => updateSubmission(item.creator, "Approved")}
+                      onClick={() => updateSubmission(item.id, "Approved")}
                     >
                       Approve
                     </button>
                     <button
                       className="reject-button"
-                      onClick={() => updateSubmission(item.creator, "Rejected")}
+                      onClick={() => updateSubmission(item.id, "Rejected")}
                     >
                       Reject
                     </button>
                     {item.imported && (
                       <button
                         className="remove-button"
-                        onClick={() => removeSubmission(item.creator)}
+                        onClick={() => removeSubmission(item.id)}
                       >
                         Remove
                       </button>
@@ -1023,6 +1070,7 @@ function Submissions({
   onAdd,
   onImport,
   duplicateKeys,
+  duplicateCount,
   onRemoveDuplicates,
 }) {
   const [showCreate, setShowCreate] = useState(false);
@@ -1042,9 +1090,6 @@ function Submissions({
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
-  const duplicateCount = submissions.filter((item) =>
-    duplicateKeys.has(submissionKey(item)),
-  ).length;
   const audienceName =
     audience === "brand" ? "Brand submissions" : "Influencer submissions";
   const description =
@@ -1065,19 +1110,20 @@ function Submissions({
           <span className="duplicate-warning-icon">⚠</span>
           <div className="duplicate-warning-text">
             <strong>
-              {duplicateCount} flagged duplicate
-              {duplicateCount === 1 ? "" : "s"}
+              {duplicateCount} duplicate
+              {duplicateCount === 1 ? "" : "s"} to remove
             </strong>
             <small>
-              Repeating entries detected in this queue. Delete them all at
-              once to remove every duplicate row.
+              {duplicateKeys.size} repeating entr
+              {duplicateKeys.size === 1 ? "y" : "ies"} flagged in this queue.
+              Delete them all at once below.
             </small>
           </div>
           <button
             className="duplicate-delete-button"
             onClick={onRemoveDuplicates}
           >
-            Delete duplicates
+            Remove duplicates
           </button>
         </section>
       )}
@@ -1125,7 +1171,7 @@ function Submissions({
         <Metric
           label="FLAGGED POSTS"
           value={String(duplicateCount).padStart(2, "0")}
-          detail={duplicateCount === 0 ? "none" : "duplicates"}
+          detail={duplicateCount === 0 ? "clean" : "to remove"}
           color="yellow"
         />
       </section>

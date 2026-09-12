@@ -789,6 +789,7 @@ function SubmissionTable({
   review = false,
   showEngagement = true,
   showCampaign = true,
+  showContact = true,
   updateSubmission,
   editSubmission,
   removeSubmission,
@@ -800,7 +801,8 @@ function SubmissionTable({
         <thead>
           <tr>
             <th>CREATOR</th>
-            {showCampaign ? <th>CAMPAIGN</th> : <th>CONTACT</th>}
+            {showCampaign && <th>CAMPAIGN</th>}
+            {showContact && <th>CONTACT</th>}
             <th>SUBMITTED</th>
             {showEngagement && <th>ENGAGEMENT</th>}
             <th>REMARKS</th>
@@ -852,9 +854,9 @@ function SubmissionTable({
                   </div>
                 </div>
               </td>
-              <td>
-                {showCampaign ? (
-                  review ? (
+              {showCampaign && (
+                <td>
+                  {review ? (
                     <input
                       className="inline-input"
                       value={item.campaign}
@@ -868,24 +870,29 @@ function SubmissionTable({
                     />
                   ) : (
                     item.campaign
-                  )
-                ) : review ? (
-                  <input
-                    className="inline-input"
-                    value={item.contact || ""}
-                    onChange={(event) =>
-                      editSubmission(
-                        item.id,
-                        "contact",
-                        event.target.value,
-                      )
-                    }
-                    placeholder="Add contact"
-                  />
-                ) : (
-                  item.contact || "—"
-                )}
-              </td>
+                  )}
+                </td>
+              )}
+              {showContact && (
+                <td>
+                  {review ? (
+                    <input
+                      className="inline-input"
+                      value={item.contact || ""}
+                      onChange={(event) =>
+                        editSubmission(
+                          item.id,
+                          "contact",
+                          event.target.value,
+                        )
+                      }
+                      placeholder="Add contact"
+                    />
+                  ) : (
+                    item.contact || "—"
+                  )}
+                </td>
+              )}
               <td className="muted">{item.submitted}</td>
               {showEngagement && (
                 <td>
@@ -1185,10 +1192,10 @@ function Submissions({
           <div className="form-grid submission-form-grid">
             <input placeholder="Creator name *" value={draft.creator} onChange={(event) => setDraft({ ...draft, creator: event.target.value })} />
             <input placeholder="Handle *" value={draft.handle} onChange={(event) => setDraft({ ...draft, handle: event.target.value })} />
-            <input placeholder="Campaign" value={draft.campaign} onChange={(event) => setDraft({ ...draft, campaign: event.target.value })} />
+            <input placeholder={audience === "brand" ? "Campaign *" : "Campaign"} value={draft.campaign} onChange={(event) => setDraft({ ...draft, campaign: event.target.value })} />
+            <input placeholder="Contact" value={draft.contact} onChange={(event) => setDraft({ ...draft, contact: event.target.value })} />
             <input placeholder="Submitted" value={draft.submitted} onChange={(event) => setDraft({ ...draft, submitted: event.target.value })} />
             {audience !== "brand" && <>
-              <input placeholder="Contact" value={draft.contact} onChange={(event) => setDraft({ ...draft, contact: event.target.value })} />
               <input placeholder="Comments" value={draft.comments} onChange={(event) => setDraft({ ...draft, comments: event.target.value })} />
               <input placeholder="Likes" value={draft.likes} onChange={(event) => setDraft({ ...draft, likes: event.target.value })} />
             </>}

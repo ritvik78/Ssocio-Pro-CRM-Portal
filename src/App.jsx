@@ -229,10 +229,18 @@ const normalizeSubmission = (row, index) => {
     "note",
     "comment",
   ]);
+  const contact = readCell(row, [
+    "contact",
+    "email",
+    "mobile",
+    "phone",
+    "whatsapp",
+  ]);
   return {
     creator,
     handle,
     campaign,
+    contact,
     submitted:
       readCell(row, ["submitted", "submittedat", "date"]) ||
       "Imported just now",
@@ -400,8 +408,12 @@ function App() {
     const creator = draft.creator.trim();
     const handle = draft.handle.trim();
     const campaign = draft.campaign.trim();
-    if (!creator || !handle || !campaign) {
-      notify("Creator, handle, and campaign are required");
+    if (!creator || !handle || (audience === "brand" && !campaign)) {
+      notify(
+        audience === "brand"
+          ? "Creator, handle, and campaign are required"
+          : "Creator and handle are required",
+      );
       return false;
     }
     const current =
@@ -417,7 +429,8 @@ function App() {
         id: createId("sub"),
         creator,
         handle,
-        campaign,
+        campaign: campaign || "—",
+        contact: (draft.contact || "").trim(),
         submitted: draft.submitted.trim() || "Just now",
         comments: draft.comments.trim() || "0",
         likes: draft.likes.trim() || "0",
@@ -755,6 +768,7 @@ function SubmissionTable({
   onAction,
   review = false,
   showEngagement = true,
+  showCampaign = true,
   updateSubmission,
   editSubmission,
   removeSubmission,
@@ -766,7 +780,7 @@ function SubmissionTable({
         <thead>
           <tr>
             <th>CREATOR</th>
-            <th>CAMPAIGN</th>
+            {showCampaign ? <th>CAMPAIGN</th> : <th>CONTACT</th>}
             <th>SUBMITTED</th>
             {showEngagement && <th>ENGAGEMENT</th>}
             <th>REMARKS</th>
@@ -819,20 +833,37 @@ function SubmissionTable({
                 </div>
               </td>
               <td>
-                {review ? (
+                {showCampaign ? (
+                  review ? (
+                    <input
+                      className="inline-input"
+                      value={item.campaign}
+                      onChange={(event) =>
+                        editSubmission(
+                          item.id,
+                          "campaign",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  ) : (
+                    item.campaign
+                  )
+                ) : review ? (
                   <input
                     className="inline-input"
-                    value={item.campaign}
+                    value={item.contact || ""}
                     onChange={(event) =>
                       editSubmission(
                         item.id,
-                        "campaign",
+                        "contact",
                         event.target.value,
                       )
                     }
+                    placeholder="Add contact"
                   />
                 ) : (
-                  item.campaign
+                  item.contact || "—"
                 )}
               </td>
               <td className="muted">{item.submitted}</td>
@@ -1078,6 +1109,7 @@ function Submissions({
     creator: "",
     handle: "",
     campaign: "",
+    contact: "",
     submitted: "Just now",
     comments: "0",
     likes: "0",
@@ -1133,9 +1165,10 @@ function Submissions({
           <div className="form-grid submission-form-grid">
             <input placeholder="Creator name *" value={draft.creator} onChange={(event) => setDraft({ ...draft, creator: event.target.value })} />
             <input placeholder="Handle *" value={draft.handle} onChange={(event) => setDraft({ ...draft, handle: event.target.value })} />
-            <input placeholder="Campaign *" value={draft.campaign} onChange={(event) => setDraft({ ...draft, campaign: event.target.value })} />
+            <input placeholder="Campaign" value={draft.campaign} onChange={(event) => setDraft({ ...draft, campaign: event.target.value })} />
             <input placeholder="Submitted" value={draft.submitted} onChange={(event) => setDraft({ ...draft, submitted: event.target.value })} />
             {audience !== "brand" && <>
+              <input placeholder="Contact" value={draft.contact} onChange={(event) => setDraft({ ...draft, contact: event.target.value })} />
               <input placeholder="Comments" value={draft.comments} onChange={(event) => setDraft({ ...draft, comments: event.target.value })} />
               <input placeholder="Likes" value={draft.likes} onChange={(event) => setDraft({ ...draft, likes: event.target.value })} />
             </>}
@@ -1186,6 +1219,7 @@ function Submissions({
           submissions={filtered}
           review
           showEngagement={audience !== "brand"}
+          showCampaign={audience === "brand"}
           updateSubmission={updateSubmission}
           editSubmission={editSubmission}
           removeSubmission={removeSubmission}

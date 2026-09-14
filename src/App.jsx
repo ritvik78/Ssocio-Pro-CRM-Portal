@@ -47,6 +47,7 @@ const initialSubmissions = [
     comments: "184",
     likes: "12.8K",
     remarks: "Check story frame 3",
+    updates: "",
     status: "Needs review",
     initials: "AO",
     tone: "coral",
@@ -59,6 +60,7 @@ const initialSubmissions = [
     comments: "96",
     likes: "8.4K",
     remarks: "Waiting for link proof",
+    updates: "",
     status: "In review",
     initials: "MC",
     tone: "blue",
@@ -71,6 +73,7 @@ const initialSubmissions = [
     comments: "241",
     likes: "19.2K",
     remarks: "Verified by admin",
+    updates: "",
     status: "Approved",
     initials: "SP",
     tone: "yellow",
@@ -83,6 +86,7 @@ const initialSubmissions = [
     comments: "62",
     likes: "6.1K",
     remarks: "",
+    updates: "",
     status: "Needs review",
     initials: "TW",
     tone: "green",
@@ -112,22 +116,6 @@ const findDuplicateSummary = (rows) => {
     }
   });
   return { keys, extraCount };
-};
-const offlineStorageKey = (audience) => `ssocio-pro-${audience}-submissions`;
-const readOfflineRows = (audience) => {
-  try {
-    const value = localStorage.getItem(offlineStorageKey(audience));
-    return value === null ? null : JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
-const writeOfflineRows = (audience, rows) => {
-  try {
-    localStorage.setItem(offlineStorageKey(audience), JSON.stringify(rows));
-  } catch {
-    // Browser storage can be unavailable in private or restricted contexts.
-  }
 };
 const campaigns = [
   {
@@ -267,6 +255,7 @@ const normalizeSubmission = (row, index) => {
     comments,
     likes,
     remarks,
+    updates: readCell(row, ["updates", "update", "followup"]) || "",
     status,
     id: createId("sub"),
     initials: creator
@@ -299,8 +288,8 @@ function App() {
   const [activeNav, setActiveNav] = useState("Overview");
   const role = currentUser.role;
   const [toast, setToast] = useState("");
-  const [brandSubmissions, setBrandSubmissions] = useState(() => readOfflineRows("brand") || cloneSubmissions(initialSubmissions));
-  const [influencerSubmissions, setInfluencerSubmissions] = useState(() => readOfflineRows("influencer") || cloneSubmissions(initialSubmissions));
+  const [brandSubmissions, setBrandSubmissions] = useState(() => cloneSubmissions(initialSubmissions));
+  const [influencerSubmissions, setInfluencerSubmissions] = useState(() => cloneSubmissions(initialSubmissions));
   const [search, setSearch] = useState("");
   const fileInput = useRef(null);
   const notify = (message) => {
@@ -312,21 +301,11 @@ function App() {
     setSearch("");
   };
   const persistAudience = async (audience, rows) => {
-    writeOfflineRows(audience, rows);
-    if (supabase) {
-      try {
-        await saveSupabaseSubmissions(audience, rows);
-        return;
-      } catch (error) {
-        console.warn(`Supabase storage unavailable; ${audience} data will use the fallback storage.`, error.message);
-      }
-    }
-    if (!apiBase) return;
     try {
-      const response = await fetch(`${apiBase}/api/storage/submissions/${audience}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
-      if (!response.ok) throw new Error("Storage API rejected the data");
+      await saveSupabaseSubmissions(audience, rows);
     } catch (error) {
-      console.warn(`Backend storage unavailable; ${audience} data remains saved offline.`, error.message);
+      console.error(`Supabase sync failed for ${audience} submissions:`, error.message);
+      notify("Could not sync to Supabase. Changes will not appear on other devices.");
     }
   };
   const setForAudience = (audience, updater) => {
@@ -339,42 +318,19 @@ function App() {
   };
   useEffect(() => {
     const loadAudience = async (audience, setter) => {
-      if (supabase) {
-        try {
-          const rows = await loadSupabaseSubmissions(audience);
-          if (rows.length) setter(rows.map(ensureId));
-          else {
-            const seed = cloneSubmissions(initialSubmissions);
-            setter(seed);
-            void persistAudience(audience, seed);
-          }
-          return;
-        } catch (error) {
-          console.warn(`Supabase loading unavailable; ${audience} data will use the fallback storage.`, error.message);
-        }
-      }
-      const offlineRows = readOfflineRows(audience);
-      if (offlineRows !== null) {
-        const rows = offlineRows.map(ensureId);
-        setter(rows);
-        void persistAudience(audience, rows);
-        return;
-      }
-      if (!apiBase) return;
+      if (!supabase) return;
       try {
-        const response = await fetch(`${apiBase}/api/storage/submissions/${audience}`);
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Storage API unavailable");
-        if (result.rows.length) setter(result.rows.map(ensureId));
-        else {
-          const seed = cloneSubmissions(initialSubmissions);
-          setter(seed);
-          void persistAudience(audience, seed);
+        const rows = await loadSupabaseSubmissions(audience);
+        if (rows.length) {
+          setter(rows.map(ensureId));
+          return;
         }
-      } catch {
         const seed = cloneSubmissions(initialSubmissions);
         setter(seed);
-        writeOfflineRows(audience, seed);
+        void persistAudience(audience, seed);
+      } catch (error) {
+        console.error(`Supabase loading failed for ${audience} submissions:`, error.message);
+        notify("Could not load submissions from Supabase. Check the Supabase connection.");
       }
     };
     void loadAudience("brand", setBrandSubmissions);
@@ -455,6 +411,7 @@ function App() {
         comments: draft.comments.trim() || "0",
         likes: draft.likes.trim() || "0",
         remarks: draft.remarks.trim(),
+        updates: draft.updates || "",
         status: draft.status || "Needs review",
         initials: creator
           .split(" ")
@@ -806,6 +763,7 @@ function SubmissionTable({
             <th>SUBMITTED</th>
             {showEngagement && <th>ENGAGEMENT</th>}
             <th>REMARKS</th>
+            <th>UPDATES</th>
             <th>STATUS</th>
             <th>ACTION</th>
           </tr>
@@ -945,6 +903,24 @@ function SubmissionTable({
                   />
                 ) : (
                   <span className="remarks-text">{item.remarks || "—"}</span>
+                )}
+              </td>
+              <td>
+                {review ? (
+                  <select
+                    className="inline-select"
+                    value={item.updates || ""}
+                    onChange={(event) =>
+                      editSubmission(item.id, "updates", event.target.value)
+                    }
+                  >
+                    <option value="">Select</option>
+                    <option>1st follow up</option>
+                    <option>2nd follow up</option>
+                    <option>3rd follow up</option>
+                  </select>
+                ) : (
+                  <span className="remarks-text">{item.updates || "—"}</span>
                 )}
               </td>
               <td>
@@ -1141,11 +1117,12 @@ function Submissions({
     comments: "0",
     likes: "0",
     remarks: "",
+    updates: "",
     status: "Needs review",
   };
   const [draft, setDraft] = useState(emptyDraft);
   const filtered = submissions.filter((item) =>
-    `${item.creator} ${item.campaign} ${item.status}`
+    `${item.creator} ${item.campaign} ${item.status} ${item.updates}`
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
@@ -1200,6 +1177,12 @@ function Submissions({
               <input placeholder="Likes" value={draft.likes} onChange={(event) => setDraft({ ...draft, likes: event.target.value })} />
             </>}
             <input placeholder="Remarks" value={draft.remarks} onChange={(event) => setDraft({ ...draft, remarks: event.target.value })} />
+            <select value={draft.updates || ""} onChange={(event) => setDraft({ ...draft, updates: event.target.value })}>
+              <option value="">Updates</option>
+              <option>1st follow up</option>
+              <option>2nd follow up</option>
+              <option>3rd follow up</option>
+            </select>
             <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
               <option>Needs review</option>
               <option>In review</option>

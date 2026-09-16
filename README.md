@@ -24,6 +24,16 @@ Required settings:
 
 This Vite app uses the browser Supabase client, so use Vite-prefixed variables rather than the Next.js `NEXT_PUBLIC_*` names. Copy `.env.example` to `.env.local`, add your Supabase project URL and publishable key, then run the SQL in `supabase-schema.sql` in the Supabase SQL Editor. Submission records will use Supabase when these variables and the table are available, with the existing API and local storage as a fallback.
 
+### Cloud sync of all CRM data
+
+Everything you enter in the portal is persisted to Supabase so it appears on any other device that opens the app:
+
+- **Brand & Influencer submissions** are stored in the `submissions` table (payload JSON per row).
+- **Campaigns, creators, wallet transactions, sent emails, and settings** are stored in the `app_state` table, grouped by `app_key` (`campaigns`, `creators`, `wallet_transactions`, `sent_emails`, `settings`).
+- **Uploaded files** (e.g. campaign images) are uploaded to the public Supabase Storage bucket `crm-assets`, and the campaign keeps the public file URL instead of a local base64 blob.
+
+All of the above SQL (tables, row-level-security policies, and the `crm-assets` bucket) is included in `supabase-schema.sql`. Run the whole file once in the Supabase SQL Editor. Changes are saved to Supabase on every edit, and last write wins across devices.
+
 The backend also supports `@supabase/server`. Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `SUPABASE_JWKS_URL` only in the Node host environment. Never expose `SUPABASE_SECRET_KEY` through `VITE_*` variables or commit it. The backend check is available at `/api/supabase/status`.
 
 Authenticated clients can send a Supabase access token to `/api/auth/me` as `Authorization: Bearer <token>`. The endpoint verifies the token with the configured JWKS URL and returns the verified user claims.

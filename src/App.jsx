@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { loadSupabaseSubmissions, saveSupabaseSubmissions, supabase } from "./lib/supabase";
+import { loadAppData, loadSupabaseSubmissions, readFileAsDataUrl, saveAppData, saveSupabaseSubmissions, supabase, uploadCrmFile } from "./lib/supabase";
+import { useSyncedState } from "./lib/useSyncedState";
 import "./App.css";
 
 const currentUser = { username: "Admin", role: "Ops / Admin" };
@@ -1240,12 +1241,12 @@ function Submissions({
   );
 }
 function Campaigns({ notify }) {
-  const [items, setItems] = useState(campaigns)
+  const [items, setItems] = useSyncedState("campaigns", campaigns, notify)
   const [editing, setEditing] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
   const [draft, setDraft] = useState({ name: '', brand: '', budget: '₹0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow', image: '' })
   const update = (name, field, value) => setItems((current) => current.map((item) => item.name === name ? { ...item, [field]: value } : item))
-  const handleImage = (event) => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { notify('Choose an image file'); return }; const reader = new FileReader(); reader.onload = () => setDraft((current) => ({ ...current, image: String(reader.result) })); reader.readAsDataURL(file) }
+  const handleImage = async (event) => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { notify('Choose an image file'); return }; try { const url = await uploadCrmFile('campaigns', file, draft.name); if (url) { notify('Campaign image uploaded to Supabase storage'); setDraft((current) => ({ ...current, image: url })); return; } } catch (error) { console.error('Campaign image upload failed:', error.message); notify('Could not upload to cloud storage. Image is kept on this device only.'); } const fallbackImage = String(await readFileAsDataUrl(file)); setDraft((current) => ({ ...current, image: fallbackImage })) }
   const create = () => { if (!draft.name.trim() || !draft.brand.trim()) { notify('Campaign name and brand are required'); return }; setItems((current) => [{ ...draft, creators: Number(draft.creators) || 0, submitted: Number(draft.submitted) || 0 }, ...current]); setDraft({ name: '', brand: '', budget: '₹0', creators: 0, submitted: 0, status: 'Draft', tone: 'yellow', image: '' }); setShowCreate(false); notify('Campaign created') }
   return (
     <>
@@ -1288,7 +1289,7 @@ function Campaigns({ notify }) {
   );
 }
 function Creators({ search, notify }) {
-  const [items, setItems] = useState(creators)
+  const [items, setItems] = useSyncedState("creators", creators, notify)
   const [showInvite, setShowInvite] = useState(false)
   const [editing, setEditing] = useState(null)
   const [invite, setInvite] = useState({ name: '', handle: '', tier: 'ProLite' })
@@ -1354,11 +1355,11 @@ function Creators({ search, notify }) {
 function Wallet({ notify }) {
   const [showPayout, setShowPayout] = useState(false)
   const [payout, setPayout] = useState({ recipient: '', amount: '', note: '' })
-  const [transactions, setTransactions] = useState([
+  const [transactions, setTransactions] = useSyncedState("wallet_transactions", [
     { icon: '↓', tone: 'green', title: 'Cashback credit · Amara Okafor', detail: 'Glow Recipe launch · Today, 10:42', amount: '+₹420.00', status: 'Processed' },
     { icon: '↗', tone: 'yellow', title: 'Settlement · Glow Recipe', detail: 'Brand wallet · Yesterday, 16:08', amount: '-₹1,240.00', status: 'Pending' },
     { icon: '↓', tone: 'blue', title: 'Cashback credit · Sofia Patel', detail: 'Aster skincare · Yesterday, 09:21', amount: '+₹680.00', status: 'Processed' },
-  ])
+  ], notify)
   const recordPayout = () => { if (!payout.recipient.trim() || !payout.amount.trim()) { notify('Recipient and amount are required'); return }; setTransactions((current) => [{ icon: '↗', tone: 'yellow', title: `Payout · ${payout.recipient}`, detail: `${payout.note || 'Manual payout'} · Just now`, amount: `-₹${payout.amount}`, status: 'Pending' }, ...current]); setPayout({ recipient: '', amount: '', note: '' }); setShowPayout(false); notify('Payout recorded') }
   return (
     <>
@@ -1408,7 +1409,7 @@ function Automation({ notify }) {
   const [selectedTemplate, setSelectedTemplate] = useState(0);
   const [subject, setSubject] = useState(emailTemplates[0].subject);
   const [body, setBody] = useState(emailTemplates[0].body);
-  const [sentEmails, setSentEmails] = useState([]);
+  const [sentEmails, setSentEmails] = useSyncedState("sent_emails", [], notify);
   const [sending, setSending] = useState(false);
   const [emailStatus, setEmailStatus] = useState("checking");
 
@@ -1685,7 +1686,17 @@ function Automation({ notify }) {
 }
 function Settings({ notify }) {
   const [settings, setSettings] = useState({ workspace: 'Ssocio Pro', domain: 'ssociopro.com', timezone: 'Africa/Lagos' })
-  const updateSetting = (field, value) => setSettings((current) => ({ ...current, [field]: value }))
+  const settingsKey = "settings"
+  useEffect(() => {
+    let active = true;
+    loadAppData(settingsKey).then((rows) => {
+      if (rows && rows.length && active) setSettings(rows[0]);
+    }).catch((error) => {
+      console.error(`Supabase loading failed for ${settingsKey}:`, error.message);
+    });
+    return () => { active = false; };
+  }, [])
+  const updateSetting = (field, value) => { const next = { ...settings, [field]: value }; setSettings(next); saveAppData(settingsKey, [next]).catch((error) => { console.error(`Supabase sync failed for ${settingsKey}:`, error.message); notify('Could not sync to Supabase. Changes will not appear on other devices.') }) }
   return (
     <>
       <PageHeader

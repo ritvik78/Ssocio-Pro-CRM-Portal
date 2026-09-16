@@ -18,6 +18,16 @@ model Submission {
   @@map("submissions")
 }
 
+model AppState {
+  id        Int      @id @default(autoincrement())
+  appKey    String   @map("app_key")
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([appKey, createdAt])
+  @@map("app_state")
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   username     String   @unique

@@ -1,7 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// The URL and publishable key are public by design (they are safe for any
+// client). The env vars win when a build host sets them; these fallbacks
+// guarantee every deployment of this client (GitHub Pages, Render, local,
+// etc.) syncs to the same Supabase project even if the host omits the vars.
+const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL || "https://ybdlziufamgufmghmiou.supabase.co";
+const supabasePublishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  "sb_publishable_mMD0nZxfu-sL1DEqAtzG1w_D0jipHN9";
 
 export const supabase = supabaseUrl && supabasePublishableKey
   ? createClient(supabaseUrl, supabasePublishableKey)

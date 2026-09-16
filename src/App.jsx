@@ -5,6 +5,7 @@ import { useSyncedState } from "./lib/useSyncedState";
 import "./App.css";
 
 const currentUser = { username: "Admin", role: "Ops / Admin" };
+const seededAudiences = new Set();
 
 const navItems = [
   ["Overview", "⌂"],
@@ -311,11 +312,9 @@ function App() {
   };
   const setForAudience = (audience, updater) => {
     const setter = audience === "brand" ? setBrandSubmissions : setInfluencerSubmissions;
-    setter((current) => {
-      const next = updater(current);
-      void persistAudience(audience, next);
-      return next;
-    });
+    const next = updater(audience === "brand" ? brandSubmissions : influencerSubmissions);
+    setter(next);
+    void persistAudience(audience, next);
   };
   useEffect(() => {
     const loadAudience = async (audience, setter) => {
@@ -326,6 +325,8 @@ function App() {
           setter(rows.map(ensureId));
           return;
         }
+        if (seededAudiences.has(audience)) return;
+        seededAudiences.add(audience);
         const seed = cloneSubmissions(initialSubmissions);
         setter(seed);
         void persistAudience(audience, seed);
